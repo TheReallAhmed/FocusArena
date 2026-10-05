@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Timer, ListChecks, CalendarDays, Trophy, Users,
-  UsersRound, ShieldCheck, UserRoundCog,
+  UsersRound, ShieldCheck, UserRoundCog, Watch,
 } from "lucide-react";
 import { Logo } from "@/components/brand";
 import { Avatar, LevelChip, AdminChip } from "@/components/widgets";
@@ -15,6 +15,7 @@ import { levelFromXp } from "@/lib/xp";
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/focus", label: "Focus", icon: Timer },
+  { href: "/stopwatch", label: "Stopwatch", icon: Watch },
   { href: "/rooms", label: "Rooms", icon: UsersRound },
   { href: "/tasks", label: "Tasks", icon: ListChecks },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
