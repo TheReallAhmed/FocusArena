@@ -6,6 +6,7 @@ import { getSessionUser } from "@/lib/auth";
 import { getSquadDetail } from "@/server/queries";
 import { Avatar, AdminChip, LevelChip } from "@/components/widgets";
 import { CopyButton } from "@/components/client-utils";
+import { LiveRefresh } from "@/components/live-refresh";
 import { LeaveSquadButton } from "@/components/squad-leave";
 import { levelFromXp } from "@/lib/xp";
 import { fmtMinutes } from "@/lib/dates";
@@ -68,6 +69,7 @@ export default async function SquadDetailPage({
         <div className="flex items-center justify-between px-5 py-3.5">
           <h2 className="flex items-center gap-2 text-sm font-bold text-white">
             <Medal size={15} className="text-gold-400" /> This week
+            <LiveRefresh intervalMs={20000} label="Live" />
           </h2>
           <span className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-[#6d6a8f]">Focus minutes</span>
         </div>

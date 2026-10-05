@@ -5,9 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Play, Square, Crown, Radio, ArrowLeft, UsersRound, Link2, Check,
-  CheckCircle2, PartyPopper, LoaderCircle, LogOut, Flame, Zap,
+  CheckCircle2, PartyPopper, LoaderCircle, LogOut, Flame, Zap, Trash2,
+  AlertTriangle,
 } from "lucide-react";
-import { startRoomAction, endRoomAction, leaveRoomAction } from "@/server/actions";
+import { startRoomAction, endRoomAction, leaveRoomAction, deleteRoomAction } from "@/server/actions";
 import { Avatar, AdminChip } from "@/components/widgets";
 import { fmtClock } from "@/lib/dates";
 
@@ -38,27 +39,8 @@ type RoomState = {
   meId: number;
 };
 
-function playChime(kind: "focus-done" | "break-done") {
-  try {
-    const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    const ctx = new AC();
-    const notes = kind === "focus-done" ? [523.25, 659.25, 783.99, 1046.5] : [783.99, 659.25, 523.25];
-    const now = ctx.currentTime;
-    notes.forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.value = freq;
-      const t = now + i * 0.14;
-      gain.gain.setValueAtTime(0, t);
-      gain.gain.linearRampToValueAtTime(0.2, t + 0.03);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(t);
-      osc.stop(t + 0.6);
-    });
-  } catch { /* audio unavailable */ }
-}
+import { playChime as loudChime } from "@/lib/sound";
+const playChime = (kind: "focus-done" | "break-done") => loudChime(kind === "focus-done" ? "focus" : "break");
 
 export function RoomClient({
   code,
@@ -76,6 +58,8 @@ export function RoomClient({
   const [secLeft, setSecLeft] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const offsetRef = useRef(0);
   const prevStatusRef = useRef<string | null>(null);
@@ -167,6 +151,11 @@ export function RoomClient({
   const startRoom = () => start(async () => { await startRoomAction(code); await poll(); });
   const endRoom = () => start(async () => { await endRoomAction(code); await poll(); });
   const leaveRoom = () => start(async () => { await leaveRoomAction(code); router.push("/rooms"); });
+  const deleteRoom = () => start(async () => {
+    const res = await deleteRoomAction(code);
+    if (res?.error) { setDeleteError(res.error); setConfirmDelete(false); return; }
+    router.push("/rooms");
+  });
 
   return (
     <div className="space-y-5">
@@ -200,8 +189,28 @@ export function RoomClient({
                 <LogOut size={14} /> Leave
               </button>
             )}
+            {(isHostMe || iAmAdmin) && (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                disabled={pending}
+                className="btn btn-ghost !border-rose-500/30 !px-3.5 !py-2 text-xs !text-rose-300 hover:!bg-rose-500/10"
+                title="Delete this room permanently"
+              >
+                <Trash2 size={14} /> Delete room
+              </button>
+            )}
           </div>
         </div>
+        {deleteError && (
+          <p className="relative mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2.5 text-xs font-semibold text-rose-300">
+            {deleteError}
+          </p>
+        )}
+        {!isHostMe && !iAmAdmin && (
+          <p className="relative mt-4 text-[0.68rem] text-[#5c5a78]">
+            Only the room creator can delete this room.
+          </p>
+        )}
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1.5fr_1fr]">
@@ -368,6 +377,36 @@ export function RoomClient({
           </div>
         </div>
       </div>
+
+      {/* Delete confirmation */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-ink-950/85 p-4 backdrop-blur-sm" onClick={() => setConfirmDelete(false)}>
+          <div className="glass-card w-full max-w-sm p-7 animate-scale-in" onClick={(e) => e.stopPropagation()}>
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-500/15 text-rose-300">
+              <AlertTriangle size={22} />
+            </span>
+            <h2 className="mt-4 text-lg font-bold text-white">Delete this room?</h2>
+            <p className="mt-2 text-sm leading-relaxed text-[#8f8cb0]">
+              The room and its invite code disappear for everyone. XP and badges that members already
+              banked stay safe on their profiles.
+            </p>
+            <div className="mt-6 flex gap-2.5">
+              <button onClick={() => setConfirmDelete(false)} className="btn btn-ghost flex-1 !py-2.5 text-sm">
+                Keep it
+              </button>
+              <button
+                onClick={deleteRoom}
+                disabled={pending}
+                className="btn flex-1 !py-2.5 text-sm !font-bold"
+                style={{ background: "linear-gradient(135deg,#f43f5e,#be123c)", color: "#fff", border: "none" }}
+              >
+                {pending ? <LoaderCircle size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toast */}
       {toast && (

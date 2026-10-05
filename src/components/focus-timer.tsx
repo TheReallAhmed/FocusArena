@@ -7,12 +7,12 @@ import {
   CheckCircle2, ListChecks, X, LoaderCircle, Trophy, Maximize2,
   Minimize2, Volume2, VolumeX, Keyboard,
 } from "lucide-react";
-import { completeFocusSession, toggleTaskAction, type FocusResult } from "@/server/actions";
+import { useTimer } from "@/components/timer-provider";
+import { toggleTaskAction } from "@/server/actions";
 import { fmtClock } from "@/lib/dates";
 import { BadgeIcon } from "@/components/widgets";
 
 type Mode = "focus" | "short" | "long";
-
 type TaskLite = { id: number; title: string; priority: string };
 
 const MODE_META: Record<Mode, { label: string; a: string; b: string; chip: string }> = {
@@ -20,49 +20,6 @@ const MODE_META: Record<Mode, { label: string; a: string; b: string; chip: strin
   short: { label: "Short break", a: "#34d399", b: "#4ce3ff", chip: "text-mint-400" },
   long: { label: "Long break", a: "#38bdf8", b: "#a78bfa", chip: "text-sky-300" },
 };
-
-/* ------------------------------ sounds ------------------------------ */
-
-function useSounds() {
-  const ctxRef = useRef<AudioContext | null>(null);
-
-  const ensure = useCallback(() => {
-    try {
-      if (!ctxRef.current) {
-        const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-        ctxRef.current = new AC();
-      }
-      if (ctxRef.current.state === "suspended") void ctxRef.current.resume();
-      return ctxRef.current;
-    } catch {
-      return null;
-    }
-  }, []);
-
-  const chime = useCallback((kind: "focus-done" | "break-done") => {
-    const ctx = ensure();
-    if (!ctx) return;
-    const notes = kind === "focus-done" ? [523.25, 659.25, 783.99, 1046.5] : [783.99, 659.25, 523.25];
-    const now = ctx.currentTime;
-    notes.forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.value = freq;
-      const t = now + i * 0.14;
-      gain.gain.setValueAtTime(0, t);
-      gain.gain.linearRampToValueAtTime(0.22, t + 0.03);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(t);
-      osc.stop(t + 0.6);
-    });
-  }, [ensure]);
-
-  return { ensure, chime };
-}
-
-/* ------------------------------- timer ------------------------------ */
 
 export function FocusTimer({
   tasks,
@@ -80,174 +37,84 @@ export function FocusTimer({
   dailyGoal?: number;
 }) {
   const router = useRouter();
-  const { ensure, chime } = useSounds();
+  const timer = useTimer();
+  const {
+    mode, runStatus, msLeft, cycles, taskId, todayMin, lastResult,
+    settings, setSettings, seedDaily, pToggle, pReset, pSkip, pSetMode, pSetTask,
+    partialMode, setPartialMode,
+  } = timer;
 
-  const [durations, setDurations] = useState({ focus: 25, short: 5, long: 15 });
-  const [autoStart, setAutoStart] = useState(false);
-  const [muted, setMuted] = useState(false);
-  const [hydrated, setHydrated] = useState(false);
   const [zen, setZen] = useState(false);
-  const [mode, setMode] = useState<Mode>("focus");
-  const [secondsLeft, setSecondsLeft] = useState(25 * 60);
-  const [running, setRunning] = useState(false);
-  const [cycles, setCycles] = useState(doneToday);
-  const [todayMin, setTodayMin] = useState(todayMinutes);
-  const [activeTaskId, setActiveTaskId] = useState<number | null>(initialTaskId);
   const [showSettings, setShowSettings] = useState(false);
-  const [result, setResult] = useState<FocusResult | null>(null);
   const [showBadges, setShowBadges] = useState(false);
   const [xpPop, setXpPop] = useState<number | null>(null);
   const [saving, startSave] = useTransition();
+  const [prevGained, setPrevGained] = useState<number | null>(null);
+  const resultRef = useRef(lastResult);
+  const seededRef = useRef(false);
 
-  const endAtRef = useRef<number>(0);
-  const secondsRef = useRef(secondsLeft);
-  secondsRef.current = secondsLeft;
-  const mutedRef = useRef(muted);
-  mutedRef.current = muted;
-
-  const totalFor = useCallback((m: Mode) => durations[m] * 60, [durations]);
-
-  /* hydrate settings from localStorage */
+  /* seed day counters + initial task from the server */
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("fa_settings");
-      if (raw) {
-        const s = JSON.parse(raw) as { focus?: number; short?: number; long?: number; autoStart?: boolean; muted?: boolean };
-        const clamp = (v: number | undefined, dflt: number) =>
-          typeof v === "number" && v >= 1 && v <= 120 ? v : dflt;
-        const next = { focus: clamp(s.focus, 25), short: clamp(s.short, 5), long: clamp(s.long, 15) };
-        setDurations(next);
-        setSecondsLeft(next.focus * 60);
-        setAutoStart(Boolean(s.autoStart));
-        setMuted(Boolean(s.muted));
-      }
-    } catch { /* ignore */ }
-    setHydrated(true);
+    if (!seededRef.current) {
+      seededRef.current = true;
+      seedDaily(doneToday, todayMinutes);
+      if (initialTaskId) pSetTask(initialTaskId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const persist = (next: { focus: number; short: number; long: number }, auto: boolean, mute: boolean) => {
-    try {
-      localStorage.setItem("fa_settings", JSON.stringify({ ...next, autoStart: auto, muted: mute }));
-    } catch { /* ignore */ }
-  };
-
-  const playChime = useCallback((kind: "focus-done" | "break-done") => {
-    if (!mutedRef.current) chime(kind);
-  }, [chime]);
-
-  const switchMode = useCallback((m: Mode, auto = false) => {
-    setMode(m);
-    setSecondsLeft(totalFor(m));
-    setRunning(auto);
-    if (auto) endAtRef.current = Date.now() + totalFor(m) * 1000;
-  }, [totalFor]);
-
-  const finishPhase = useCallback(() => {
-    setRunning(false);
-    if (mode === "focus") {
-      playChime("focus-done");
-      const done = cycles + 1;
-      setCycles(done);
-      startSave(async () => {
-        try {
-          const res = await completeFocusSession({ minutes: durations.focus, taskId: activeTaskId });
-          setResult(res);
-          setTodayMin((v) => v + durations.focus);
-          setXpPop(res.gained);
-          if (res.newBadges.length > 0) setShowBadges(true);
-          setTimeout(() => setXpPop(null), 2000);
-        } catch { /* offline — stay quiet */ }
-      });
-      switchMode(done % 4 === 0 ? "long" : "short", autoStart);
-    } else {
-      playChime("break-done");
-      switchMode("focus", autoStart);
-    }
-  }, [mode, cycles, durations.focus, activeTaskId, autoStart, playChime, switchMode]);
-
-  const finishRef = useRef(finishPhase);
-  finishRef.current = finishPhase;
-
-  /* ticker */
+  /* react to freshly-banked rounds */
   useEffect(() => {
-    if (!running) return;
-    const id = setInterval(() => {
-      const left = Math.max(0, Math.round((endAtRef.current - Date.now()) / 1000));
-      setSecondsLeft(left);
-      if (left <= 0) {
-        clearInterval(id);
-        finishRef.current();
-      }
-    }, 250);
-    return () => clearInterval(id);
-  }, [running]);
+    if (lastResult && lastResult !== resultRef.current) {
+      resultRef.current = lastResult;
+      setPrevGained(lastResult.gained);
+      setXpPop(lastResult.gained);
+      if (lastResult.newBadges.length > 0) setShowBadges(true);
+      const t = setTimeout(() => setXpPop(null), 2000);
+      return () => clearTimeout(t);
+    }
+  }, [lastResult]);
 
   /* tab title */
+  const secondsLeft = Math.round(msLeft / 1000);
   useEffect(() => {
     document.title = `${fmtClock(secondsLeft)} ${MODE_META[mode].label} · FocusArena`;
     return () => { document.title = "Focus · FocusArena"; };
   }, [secondsLeft, mode]);
 
-  const toggleRun = useCallback(() => {
-    ensure();
-    if (running) {
-      setRunning(false);
-    } else {
-      endAtRef.current = Date.now() + secondsRef.current * 1000;
-      setRunning(true);
-    }
-  }, [ensure, running]);
-
-  const reset = useCallback(() => {
-    setRunning(false);
-    setSecondsLeft(totalFor(mode));
-  }, [mode, totalFor]);
-
-  const skip = useCallback(() => {
-    setRunning(false);
-    setMode((cur) => {
-      const next = cur === "focus" ? ((cycles + 1) % 4 === 0 ? "long" : "short") : "focus";
-      setSecondsLeft(totalFor(next));
-      return next;
-    });
-  }, [cycles, totalFor]);
-
-  /* keyboard shortcuts */
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement;
-      if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT") return;
-      if (e.code === "Space") { e.preventDefault(); toggleRun(); }
-      else if (e.key === "r" || e.key === "R") reset();
-      else if (e.key === "s" || e.key === "S") skip();
-      else if (e.key === "m" || e.key === "M") setMuted((m) => { persist(durations, autoStart, !m); return !m; });
-      else if (e.key === "Escape") setZen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [toggleRun, reset, skip, durations, autoStart]);
-
-  const toggleZen = () => {
+  const toggleZen = useCallback(() => {
     const next = !zen;
     setZen(next);
     try {
       if (next && !document.fullscreenElement) void document.documentElement.requestFullscreen().catch(() => {});
       if (!next && document.fullscreenElement) void document.exitFullscreen().catch(() => {});
     } catch { /* fullscreen unsupported */ }
-  };
+  }, [zen]);
+
+  /* keyboard shortcuts */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT") return;
+      if (e.code === "Space") { e.preventDefault(); pToggle(); }
+      else if (e.key === "r" || e.key === "R") pReset();
+      else if (e.key === "s" || e.key === "S") pSkip();
+      else if (e.key === "m" || e.key === "M") setSettings(settings.durations, settings.autoStart, !settings.muted);
+      else if (e.key === "Escape") setZen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [pToggle, pReset, pSkip, setSettings, settings]);
 
   const onDurationChange = (key: Mode, value: number) => {
     const v = Math.max(1, Math.min(120, Math.round(value || 0)));
-    const next = { ...durations, [key]: v };
-    setDurations(next);
-    persist(next, autoStart, muted);
-    if (mode === key && !running) setSecondsLeft(v * 60);
+    setSettings({ ...settings.durations, [key]: v }, settings.autoStart, settings.muted);
   };
 
   const completeCurrentTask = () => {
-    if (!activeTaskId) return;
-    const id = activeTaskId;
-    setActiveTaskId(null);
+    if (!taskId) return;
+    const id = taskId;
+    pSetTask(null);
     startSave(async () => {
       await toggleTaskAction(id);
       router.refresh();
@@ -255,10 +122,11 @@ export function FocusTimer({
   };
 
   const meta = MODE_META[mode];
-  const total = totalFor(mode);
-  const progress = total > 0 ? 1 - secondsLeft / total : 0;
+  const total = settings.durations[mode] * 60_000;
+  const progress = total > 0 ? 1 - msLeft / total : 0;
   const C = 2 * Math.PI * 150;
-  const activeTask = tasks.find((t) => t.id === activeTaskId) ?? null;
+  const running = runStatus === "running";
+  const activeTask = tasks.find((t) => t.id === taskId) ?? null;
   const dotsInCycle = cycles % 4;
 
   const ring = (sizeCls: string) => (
@@ -314,19 +182,23 @@ export function FocusTimer({
 
   const controls = (
     <div className="relative mt-7 flex items-center justify-center gap-3.5">
-      <button onClick={reset} className="btn btn-ghost !rounded-full !p-3.5" title="Reset (R)">
+      <button
+        onClick={pReset}
+        className="btn btn-ghost !rounded-full !p-3.5"
+        title={partialMode === "yes" ? "Stop — elapsed minutes are banked (R)" : "Reset — no credit for partial time (R)"}
+      >
         <RotateCcw size={18} />
       </button>
       <button
-        onClick={toggleRun}
+        onClick={pToggle}
         disabled={saving}
         className="btn btn-primary !rounded-full !px-11 !py-4 !text-lg !font-bold"
         style={{ boxShadow: `0 12px 42px -8px ${meta.a}` }}
       >
         {running ? <Pause size={20} /> : <Play size={20} className="ml-0.5" />}
-        {running ? "Pause" : secondsLeft < total ? "Resume" : "Start"}
+        {running ? "Pause" : runStatus === "paused" ? "Resume" : "Start"}
       </button>
-      <button onClick={skip} className="btn btn-ghost !rounded-full !p-3.5" title="Skip phase (S)">
+      <button onClick={pSkip} className="btn btn-ghost !rounded-full !p-3.5" title="Skip phase (S)">
         <SkipForward size={18} />
       </button>
     </div>
@@ -347,7 +219,7 @@ export function FocusTimer({
             {(Object.keys(MODE_META) as Mode[]).map((m) => (
               <button
                 key={m}
-                onClick={() => { setRunning(false); switchMode(m); }}
+                onClick={() => pSetMode(m)}
                 className={`tab-pill !px-3 !py-1.5 !text-[0.72rem] sm:!px-4 ${mode === m ? "tab-pill-active" : ""}`}
               >
                 {MODE_META[m].label}
@@ -356,11 +228,11 @@ export function FocusTimer({
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setMuted((m) => { persist(durations, autoStart, !m); return !m; })}
-              className={`btn btn-ghost !rounded-full !p-2.5 ${muted ? "!text-rose-300" : ""}`}
-              title={muted ? "Unmute (M)" : "Mute (M)"}
+              onClick={() => setSettings(settings.durations, settings.autoStart, !settings.muted)}
+              className={`btn btn-ghost !rounded-full !p-2.5 ${settings.muted ? "!text-rose-300" : ""}`}
+              title={settings.muted ? "Unmute (M)" : "Mute (M)"}
             >
-              {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+              {settings.muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
             </button>
             <button
               onClick={() => setShowSettings((s) => !s)}
@@ -375,34 +247,71 @@ export function FocusTimer({
           </div>
         </div>
 
+        {/* persistence notice */}
+        <div className="relative mt-3 flex justify-center">
+          <span className="chip !border-mint-400/30 !bg-mint-400/8 !text-[0.62rem] !font-semibold !text-mint-400/90">
+            <Zap size={10} /> Keeps running while you navigate — even if you leave the site
+          </span>
+        </div>
+        {partialMode !== "ask" && (
+          <div className="relative mt-2 flex justify-center">
+            <span className="chip !py-0.5 !text-[0.6rem] !font-semibold">
+              {partialMode === "yes"
+                ? "Partial time counts if you stop early"
+                : "Only completed rounds count"}
+            </span>
+          </div>
+        )}
+
         {/* settings drawer */}
         {showSettings && (
-          <div className="relative mt-5 grid gap-3 rounded-2xl border border-line bg-ink-900/80 p-4 animate-scale-in sm:grid-cols-4">
+          <div className="relative mt-3 grid gap-3 rounded-2xl border border-line bg-ink-900/80 p-4 animate-scale-in sm:grid-cols-4">
             {(["focus", "short", "long"] as Mode[]).map((m) => (
               <label key={m} className="block">
                 <span className="mb-1 block text-[0.65rem] font-bold uppercase tracking-[0.14em] text-[#8f8cb0]">
                   {MODE_META[m].label} (min)
                 </span>
                 <input
-                  type="number" min={1} max={120} value={durations[m]}
+                  type="number" min={1} max={120} value={settings.durations[m]}
                   onChange={(e) => onDurationChange(m, Number(e.target.value))}
                   className="input tnum !py-2 text-center"
-                  disabled={!hydrated}
                 />
               </label>
             ))}
             <label className="flex items-end justify-between gap-2 rounded-xl border border-line bg-white/[0.03] px-3 py-2.5">
               <span className="text-[0.65rem] font-bold uppercase tracking-[0.14em] text-[#8f8cb0]">Auto-start</span>
               <input
-                type="checkbox" checked={autoStart}
-                onChange={(e) => { setAutoStart(e.target.checked); persist(durations, e.target.checked, muted); }}
+                type="checkbox" checked={settings.autoStart}
+                onChange={(e) => setSettings(settings.durations, e.target.checked, settings.muted)}
                 className="h-4 w-4 accent-[#7c6cff]"
               />
             </label>
+
+            <div className="sm:col-span-4">
+              <span className="mb-1.5 block text-[0.65rem] font-bold uppercase tracking-[0.14em] text-[#8f8cb0]">
+                If you stop mid-round
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {([
+                  { k: "yes", label: "Count the minutes" },
+                  { k: "no", label: "Only completed rounds" },
+                  { k: "ask", label: "Ask me again" },
+                ] as const).map((o) => (
+                  <button
+                    key={o.k}
+                    type="button"
+                    onClick={() => setPartialMode(o.k)}
+                    className={`tab-pill !px-3.5 !py-1.5 !text-[0.7rem] ${partialMode === o.k ? "tab-pill-active" : ""}`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
-        {ring("mt-6 max-w-[400px]")}
+        {ring("mt-4 max-w-[400px]")}
 
         {/* today goal chip */}
         <div className="relative mx-auto mt-4 flex justify-center">
@@ -419,15 +328,18 @@ export function FocusTimer({
         </div>
 
         {/* result chips */}
-        {result && (
-          <div className="relative mx-auto mt-1 flex max-w-sm flex-wrap items-center justify-center gap-2 animate-fade-up">
+        {lastResult && (
+          <div className="relative mx-auto mt-2 flex max-w-sm flex-wrap items-center justify-center gap-2 animate-fade-up">
             <span className="chip !text-[0.7rem]">
-              <Flame size={12} className="text-gold-400" /> {result.streak} day streak
+              <Flame size={12} className="text-gold-400" /> {lastResult.streak} day streak
             </span>
-            {result.leveledUp && (
+            {lastResult.leveledUp && (
               <span className="chip !border-neon-400/50 !bg-neon-400/15 !text-neon-300 !text-[0.7rem] !font-bold">
-                <Trophy size={12} /> LEVEL {result.level} REACHED
+                <Trophy size={12} /> LEVEL {lastResult.level} REACHED
               </span>
+            )}
+            {prevGained !== null && (
+              <span className="chip !text-[0.7rem] text-brand-300">+{prevGained} XP banked</span>
             )}
           </div>
         )}
@@ -458,7 +370,7 @@ export function FocusTimer({
               >
                 <CheckCircle2 size={14} /> Done
               </button>
-              <button onClick={() => setActiveTaskId(null)} className="shrink-0 text-[#6d6a8f] hover:text-white" title="Unlink">
+              <button onClick={() => pSetTask(null)} className="shrink-0 text-[#6d6a8f] hover:text-white" title="Unlink">
                 <X size={15} />
               </button>
             </div>
@@ -489,11 +401,11 @@ export function FocusTimer({
           ) : (
             <ul className="max-h-80 space-y-2 overflow-y-auto pr-1">
               {tasks.map((t) => {
-                const active = t.id === activeTaskId;
+                const active = t.id === taskId;
                 return (
                   <li key={t.id}>
                     <button
-                      onClick={() => setActiveTaskId(active ? null : t.id)}
+                      onClick={() => pSetTask(active ? null : t.id)}
                       className={`flex w-full items-center gap-3 rounded-xl border px-3.5 py-2.5 text-left transition-all ${
                         active ? "border-brand-500/50 bg-brand-500/12" : "border-line bg-white/[0.02] hover:border-white/20"
                       }`}
@@ -517,7 +429,7 @@ export function FocusTimer({
           <h2 className="text-sm font-bold text-white">Ritual</h2>
           <ul className="mt-3 space-y-2.5 text-[0.83rem] leading-relaxed text-[#8f8cb0]">
             <li className="flex gap-2.5"><span className="tnum font-bold text-brand-300">01</span> One task per round. No multitasking.</li>
-            <li className="flex gap-2.5"><span className="tnum font-bold text-brand-300">02</span> Phone face-down until the chime.</li>
+            <li className="flex gap-2.5"><span className="tnum font-bold text-brand-300">02</span> Timer survives navigation — feel free to check the board mid-round.</li>
             <li className="flex gap-2.5"><span className="tnum font-bold text-brand-300">03</span> After 4 rounds, take the long break — you earned it.</li>
             <li className="flex gap-2.5"><span className="tnum font-bold text-brand-300">04</span> Check the board. Pass {displayName.split(" ")[0]} if you can.</li>
           </ul>
@@ -526,7 +438,7 @@ export function FocusTimer({
 
       {/* ── Zen mode overlay ── */}
       {zen && (
-        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-ink-950/98 backdrop-blur-2xl animate-fade-up">
+        <div className="fixed inset-0 z-[130] flex flex-col items-center justify-center bg-ink-950/98 backdrop-blur-2xl animate-fade-up">
           <div className="pointer-events-none absolute inset-0 bg-noise opacity-[0.04]" />
           <div
             className="pointer-events-none absolute top-1/2 left-1/2 h-[34rem] w-[34rem] -translate-x-1/2 -translate-y-1/2 rounded-full blur-[140px] transition-colors duration-1000"
@@ -553,12 +465,12 @@ export function FocusTimer({
       )}
 
       {/* Badge unlock modal */}
-      {showBadges && result && result.newBadges.length > 0 && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-ink-950/80 p-4 backdrop-blur-sm" onClick={() => setShowBadges(false)}>
+      {showBadges && lastResult && lastResult.newBadges.length > 0 && (
+        <div className="fixed inset-0 z-[140] flex items-center justify-center bg-ink-950/80 p-4 backdrop-blur-sm" onClick={() => setShowBadges(false)}>
           <div className="glass-card w-full max-w-sm p-8 text-center animate-scale-in" onClick={(e) => e.stopPropagation()}>
             <p className="text-[0.65rem] font-bold uppercase tracking-[0.35em] text-gold-400">Badge unlocked</p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
-              {result.newBadges.map((b) => (
+              {lastResult.newBadges.map((b) => (
                 <div key={b.key} className="flex flex-col items-center gap-2.5">
                   <BadgeIcon badge={b} size={72} />
                   <div>

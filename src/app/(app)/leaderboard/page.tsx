@@ -5,6 +5,8 @@ import { Crown, Flame, Trophy, Medal, Sparkles } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { getLeaderboard } from "@/server/queries";
 import { Avatar, AdminChip, LevelChip } from "@/components/widgets";
+import { BadgeRail } from "@/components/badge-rail";
+import { LiveRefresh } from "@/components/live-refresh";
 import { levelFromXp } from "@/lib/xp";
 import { fmtMinutes } from "@/lib/dates";
 
@@ -46,9 +48,11 @@ export default async function LeaderboardPage({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.25em] text-brand-300">The Arena</p>
-          <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+          <h1 className="mt-1.5 flex flex-wrap items-center gap-3 text-2xl font-bold tracking-tight text-white sm:text-3xl">
             Leader<span className="text-gradient">board</span>
+            <LiveRefresh intervalMs={15000} label="Live" />
           </h1>
+          <p className="mt-1.5 text-xs text-[#6d6a8f]">Ranks refresh automatically — no reload needed.</p>
         </div>
         <div className="flex gap-1.5 rounded-full border border-line bg-white/[0.03] p-1">
           {TABS.map((t) => (
@@ -126,10 +130,13 @@ export default async function LeaderboardPage({
                         <Flame size={10} /> {r.streak}
                       </span>
                     )}
-                    <span className="chip !px-1.5 !py-0 !text-[0.62rem] !font-bold text-[#a5a2c8]">
-                      <Medal size={10} /> {r.badges}
-                    </span>
                   </div>
+                  <div className="mt-1 flex flex-wrap items-center justify-center gap-1">
+                    <BadgeRail keys={r.badgeKeys} total={r.badges} max={isFirst ? 5 : 4} size={isFirst ? 26 : 22} />
+                  </div>
+                  <span className="tnum text-[0.6rem] font-semibold text-[#6d6a8f]">
+                    {r.badges}/28 badges
+                  </span>
                 </Link>
               );
             })}
@@ -167,9 +174,9 @@ export default async function LeaderboardPage({
                       <Flame size={10} /> {r.streak}
                     </span>
                   )}
-                  <span className="chip !px-1.5 !py-0 !text-[0.62rem] !font-bold text-[#a5a2c8]">
-                    <Medal size={10} /> {r.badges}
-                  </span>
+                </div>
+                <div className="hidden items-center md:flex">
+                  <BadgeRail keys={r.badgeKeys} total={r.badges} max={4} size={21} />
                 </div>
                 <span className="tnum w-16 shrink-0 text-right text-sm font-bold text-white">{metric(r)}</span>
               </Link>

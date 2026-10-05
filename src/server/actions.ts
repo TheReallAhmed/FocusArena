@@ -270,6 +270,22 @@ export async function endRoomAction(code: string) {
   return { ok: true };
 }
 
+export async function deleteRoomAction(code: string) {
+  const user = await requireUser();
+  const rows = await db.select().from(rooms).where(eq(rooms.code, code.toUpperCase())).limit(1);
+  const room = rows[0];
+  if (!room) return { error: "Room not found." };
+  // Only the creator of the room (or a project admin) may delete it.
+  if (room.hostId !== user.id && user.role !== "admin") {
+    return { error: "Only the person who created this room can delete it." };
+  }
+  await db.delete(roomMembers).where(eq(roomMembers.roomId, room.id));
+  await db.delete(rooms).where(eq(rooms.id, room.id));
+  revalidatePath("/rooms");
+  revalidateAll();
+  return { ok: true };
+}
+
 export async function leaveRoomAction(code: string) {
   const user = await requireUser();
   const rows = await db.select({ id: rooms.id }).from(rooms).where(eq(rooms.code, code)).limit(1);

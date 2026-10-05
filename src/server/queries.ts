@@ -83,6 +83,7 @@ export type LeaderRow = {
   streak: number;
   minutes: number;
   badges: number;
+  badgeKeys: string[];
 };
 
 const userCols = {
@@ -97,22 +98,35 @@ const userCols = {
 
 const badgesSub = sql<number>`(select count(*) from ${userBadges} ub where ub.user_id = ${users.id})`;
 
+/** Most recent badge keys, newest first, for the leaderboard badge rail. */
+const badgeKeysSub = sql<string | null>`(
+  select string_agg(k, ',') from (
+    select ub.badge_key as k from ${userBadges} ub
+    where ub.user_id = ${users.id}
+    order by ub.earned_at desc
+    limit 6
+  ) recent
+)`;
+
+const parseKeys = (v: string | null | undefined): string[] =>
+  v ? v.split(",").filter(Boolean) : [];
+
 export async function getLeaderboard(tab: "week" | "all" | "streak", limit = 50): Promise<LeaderRow[]> {
   if (tab === "all") {
     const rows = await db
-      .select({ ...userCols, minutes: users.xp, badges: badgesSub })
+      .select({ ...userCols, minutes: users.xp, badges: badgesSub, badgeKeys: badgeKeysSub })
       .from(users)
       .orderBy(desc(users.xp), asc(users.id))
       .limit(limit);
-    return rows.map((r) => ({ ...r, minutes: Number(r.minutes), badges: Number(r.badges) }));
+    return rows.map((r) => ({ ...r, minutes: Number(r.minutes), badges: Number(r.badges), badgeKeys: parseKeys(r.badgeKeys) }));
   }
   if (tab === "streak") {
     const rows = await db
-      .select({ ...userCols, minutes: users.xp, badges: badgesSub })
+      .select({ ...userCols, minutes: users.xp, badges: badgesSub, badgeKeys: badgeKeysSub })
       .from(users)
       .orderBy(desc(users.streak), desc(users.xp), asc(users.id))
       .limit(limit);
-    return rows.map((r) => ({ ...r, minutes: Number(r.minutes), badges: Number(r.badges) }));
+    return rows.map((r) => ({ ...r, minutes: Number(r.minutes), badges: Number(r.badges), badgeKeys: parseKeys(r.badgeKeys) }));
   }
   const start = weekStartKey();
   const rows = await db
@@ -120,13 +134,14 @@ export async function getLeaderboard(tab: "week" | "all" | "streak", limit = 50)
       ...userCols,
       minutes: sql<number>`coalesce(sum(${focusSessions.minutes}), 0)`,
       badges: badgesSub,
+      badgeKeys: badgeKeysSub,
     })
     .from(users)
     .leftJoin(focusSessions, and(eq(focusSessions.userId, users.id), gte(focusSessions.day, start)))
     .groupBy(users.id)
     .orderBy(desc(sql`coalesce(sum(${focusSessions.minutes}), 0)`), asc(users.id))
     .limit(limit);
-  return rows.map((r) => ({ ...r, minutes: Number(r.minutes), badges: Number(r.badges) }));
+  return rows.map((r) => ({ ...r, minutes: Number(r.minutes), badges: Number(r.badges), badgeKeys: parseKeys(r.badgeKeys) }));
 }
 
 /* ----------------------------- CALENDAR ----------------------------- */
@@ -330,8 +345,19 @@ export async function getProfile(username: string) {
     .where(eq(squadMembers.userId, user.id))
     .limit(6);
 
+  // GitHub-style contribution grid — last 182 days (26 weeks)
+  const gridDays = lastNDays(182);
+  const gridRows = await db
+    .select({ day: focusSessions.day, minutes: sum(focusSessions.minutes) })
+    .from(focusSessions)
+    .where(and(eq(focusSessions.userId, user.id), gte(focusSessions.day, gridDays[0])))
+    .groupBy(focusSessions.day);
+  const gridMap = new Map(gridRows.map((r) => [r.day, Number(r.minutes ?? 0)]));
+  const contributions = gridDays.map((d) => ({ day: d, minutes: gridMap.get(d) ?? 0 }));
+
   return {
     user,
+    contributions,
     stats: {
       sessions: sess.value,
       groupSessions: grp.value,
