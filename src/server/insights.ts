@@ -45,7 +45,7 @@ export async function getArenaPulse(limit = 14): Promise<PulseItem[]> {
     const kind = r.kind as PulseItem["kind"];
     const item: PulseItem = {
       kind,
-      at: (r.at as Date).toISOString(),
+      at: new Date(r.at as string | Date).toISOString(),
       username: r.username as string,
       displayName: r.display_name as string,
       avatarHue: r.avatar_hue as number,
