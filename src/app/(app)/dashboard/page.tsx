@@ -12,6 +12,9 @@ import { getArenaPulse, getWeekDelta, type PulseItem } from "@/server/insights";
 import { getDailyQuote } from "@/lib/quote";
 import { StatCard, WeekChart, BadgeIcon, Avatar, AdminChip } from "@/components/widgets";
 import { GoalCard } from "@/components/goal-card";
+import { WeeklyReport } from "@/components/weekly-report";
+import { LiveRefresh } from "@/components/live-refresh";
+import { BadgeRail } from "@/components/badge-rail";
 import { BADGES, levelProgress } from "@/lib/xp";
 import { fmtMinutes, dayLabel, timeAgo } from "@/lib/dates";
 
@@ -155,15 +158,24 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Goal + Arena Pulse */}
-      <div className="grid gap-4 lg:grid-cols-3">
+      {/* Goal + report card + Arena Pulse */}
+      <div className="grid gap-4 lg:grid-cols-4">
         <GoalCard todayMinutes={data.todayMinutes} goal={user.dailyGoal} />
+        <div className="lg:col-span-1">
+          <WeeklyReport
+            weekTotal={data.weekTotal}
+            weekGoal={user.dailyGoal * 7}
+            activeDays={data.week.filter((d) => d.minutes > 0).length}
+            goalDays={data.week.filter((d) => d.minutes >= user.dailyGoal).length}
+            streak={user.streak}
+          />
+        </div>
 
         <div className="glass-card p-5 lg:col-span-2">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-sm font-bold text-white">
               <Radio size={15} className="text-neon-400" /> Arena pulse
-              <span className="chip !py-0.5 !text-[0.6rem] !font-bold text-mint-400">LIVE</span>
+              <LiveRefresh intervalMs={20000} label="Live" />
             </h2>
             <Link href="/leaderboard" className="text-xs font-semibold text-brand-300 hover:text-brand-200">Board →</Link>
           </div>
@@ -231,6 +243,7 @@ export default async function DashboardPage() {
                       {r.displayName}
                       {r.role === "admin" && <AdminChip small />}
                     </span>
+                    <span className="hidden sm:flex"><BadgeRail keys={r.badgeKeys} total={r.badges} max={3} size={19} /></span>
                     <span className="tnum text-xs font-bold text-[#a5a2c8]">{fmtMinutes(Number(r.minutes))}</span>
                   </Link>
                 </li>

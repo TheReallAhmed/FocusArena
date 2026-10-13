@@ -7,7 +7,7 @@ import { getLeaderboard } from "@/server/queries";
 import { Avatar, AdminChip, LevelChip } from "@/components/widgets";
 import { BadgeRail } from "@/components/badge-rail";
 import { LiveRefresh } from "@/components/live-refresh";
-import { levelFromXp } from "@/lib/xp";
+import { levelFromXp, BADGES, badgeScore } from "@/lib/xp";
 import { fmtMinutes } from "@/lib/dates";
 
 export const metadata: Metadata = { title: "Leaderboard" };
@@ -131,11 +131,11 @@ export default async function LeaderboardPage({
                       </span>
                     )}
                   </div>
-                  <div className="mt-1 flex flex-wrap items-center justify-center gap-1">
-                    <BadgeRail keys={r.badgeKeys} total={r.badges} max={isFirst ? 5 : 4} size={isFirst ? 26 : 22} />
+                  <div className="mt-1 flex flex-wrap items-center justify-center gap-1.5">
+                    <BadgeRail keys={r.badgeKeys} total={r.badges} max={isFirst ? 3 : 2} size={isFirst ? 22 : 19} />
                   </div>
                   <span className="tnum text-[0.6rem] font-semibold text-[#6d6a8f]">
-                    {r.badges}/28 badges
+                    {r.badges}/{BADGES.length} badges · {badgeScore(r.badgeKeys)} pts
                   </span>
                 </Link>
               );
@@ -175,8 +175,8 @@ export default async function LeaderboardPage({
                     </span>
                   )}
                 </div>
-                <div className="hidden items-center md:flex">
-                  <BadgeRail keys={r.badgeKeys} total={r.badges} max={4} size={21} />
+                <div className="hidden max-w-[22rem] items-center justify-end md:flex">
+                  <BadgeRail keys={r.badgeKeys} total={r.badges} max={2} size={19} />
                 </div>
                 <span className="tnum w-16 shrink-0 text-right text-sm font-bold text-white">{metric(r)}</span>
               </Link>

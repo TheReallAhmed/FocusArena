@@ -182,6 +182,54 @@ export async function getActiveTasks(user: User) {
     .limit(30);
 }
 
+/** Distinct project tags the user has used, most-used first. */
+export async function getRecentProjects(user: User, limit = 8): Promise<string[]> {
+  const rows = await db
+    .select({ project: focusSessions.project, minutes: sum(focusSessions.minutes) })
+    .from(focusSessions)
+    .where(and(eq(focusSessions.userId, user.id), sql`${focusSessions.project} is not null`))
+    .groupBy(focusSessions.project)
+    .orderBy(desc(sum(focusSessions.minutes)))
+    .limit(limit);
+  return rows.map((r) => r.project).filter((p): p is string => Boolean(p));
+}
+
+export type ProjectStat = { name: string; minutes: number; sessions: number };
+
+/** Raw session log for the History page (filterable by project). */
+export async function getSessionHistory(user: User, project?: string | null, limit = 40) {
+  const conds = [eq(focusSessions.userId, user.id)];
+  if (project) conds.push(eq(focusSessions.project, project));
+  const rows = await db
+    .select({
+      id: focusSessions.id,
+      startedAt: focusSessions.startedAt,
+      day: focusSessions.day,
+      minutes: focusSessions.minutes,
+      project: focusSessions.project,
+      note: focusSessions.note,
+      roomId: focusSessions.roomId,
+      task: tasks.title,
+    })
+    .from(focusSessions)
+    .leftJoin(tasks, eq(focusSessions.taskId, tasks.id))
+    .where(and(...conds))
+    .orderBy(desc(focusSessions.startedAt))
+    .limit(limit);
+  return rows;
+}
+
+export async function getProjectBreakdown(user: User, limit = 8): Promise<ProjectStat[]> {
+  const rows = await db
+    .select({ project: focusSessions.project, minutes: sum(focusSessions.minutes), sessions: count() })
+    .from(focusSessions)
+    .where(and(eq(focusSessions.userId, user.id), sql`${focusSessions.project} is not null`))
+    .groupBy(focusSessions.project)
+    .orderBy(desc(sum(focusSessions.minutes)))
+    .limit(limit);
+  return rows.map((r) => ({ name: r.project ?? "—", minutes: Number(r.minutes ?? 0), sessions: r.sessions }));
+}
+
 export async function getFocusContext(user: User) {
   const today = dayKey();
   const active = await getActiveTasks(user);
@@ -355,9 +403,18 @@ export async function getProfile(username: string) {
   const gridMap = new Map(gridRows.map((r) => [r.day, Number(r.minutes ?? 0)]));
   const contributions = gridDays.map((d) => ({ day: d, minutes: gridMap.get(d) ?? 0 }));
 
+  const projectRows = await db
+    .select({ project: focusSessions.project, minutes: sum(focusSessions.minutes), sessions: count() })
+    .from(focusSessions)
+    .where(and(eq(focusSessions.userId, user.id), sql`${focusSessions.project} is not null`))
+    .groupBy(focusSessions.project)
+    .orderBy(desc(sum(focusSessions.minutes)))
+    .limit(8);
+
   return {
     user,
     contributions,
+    projects: projectRows.map((r) => ({ name: r.project ?? "—", minutes: Number(r.minutes ?? 0), sessions: r.sessions })),
     stats: {
       sessions: sess.value,
       groupSessions: grp.value,

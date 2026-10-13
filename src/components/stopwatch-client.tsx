@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useTimer } from "@/components/timer-provider";
 import { BadgeIcon } from "@/components/widgets";
+import { ProjectPicker } from "@/components/project-picker";
 
 type TaskLite = { id: number; title: string; priority: string };
 
@@ -25,10 +26,12 @@ export function StopwatchClient({
   tasks,
   todayMinutes,
   dailyGoal,
+  recentProjects = [],
 }: {
   tasks: TaskLite[];
   todayMinutes: number;
   dailyGoal: number;
+  recentProjects?: string[];
 }) {
   const timer = useTimer();
   const { swStatus, swElapsedMs, swTaskId, swToggle, swSetTask, swBank, swDiscard, todayMin, lastResult, runStatus, partialMode } = timer;
@@ -41,7 +44,7 @@ export function StopwatchClient({
   useEffect(() => {
     if (!seededRef.current) {
       seededRef.current = true;
-      timer.seedDaily(0, todayMinutes);
+      timer.seedDaily(0, todayMinutes, dailyGoal);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -51,8 +54,14 @@ export function StopwatchClient({
     if (lastResult && lastResult !== prevResultRef.current) {
       prevResultRef.current = lastResult;
       setBankToast(lastResult.gained);
-      if (lastResult.newBadges.length > 0) setShowBadges(true);
-      setTimeout(() => setBankToast(null), 2200);
+      const badgeTimer = lastResult.newBadges.length > 0
+        ? window.setTimeout(() => setShowBadges(true), 0)
+        : null;
+      const toastTimer = window.setTimeout(() => setBankToast(null), 2200);
+      return () => {
+        window.clearTimeout(toastTimer);
+        if (badgeTimer !== null) window.clearTimeout(badgeTimer);
+      };
     }
   }, [lastResult]);
 
@@ -270,6 +279,8 @@ export function StopwatchClient({
               </ul>
             )}
           </div>
+
+          <ProjectPicker recent={recentProjects} accent="#fbbf24" />
 
           <div className="glass-card p-5">
             <h2 className="flex items-center gap-2 text-sm font-bold text-white">

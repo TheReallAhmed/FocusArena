@@ -23,7 +23,6 @@ export function LiveRefresh({
   useEffect(() => {
     if (!live) return;
     let left = Math.round(intervalMs / 1000);
-    setSecs(left);
     const id = setInterval(() => {
       if (document.visibilityState !== "visible") return;
       left -= 1;
@@ -41,7 +40,10 @@ export function LiveRefresh({
   return (
     <button
       type="button"
-      onClick={() => setLive((v) => !v)}
+      onClick={() => {
+        setSecs(Math.round(intervalMs / 1000));
+        setLive((v) => !v);
+      }}
       title={live ? "Live updates on — click to pause" : "Live updates paused — click to resume"}
       className={`chip !py-1 transition-all ${
         live

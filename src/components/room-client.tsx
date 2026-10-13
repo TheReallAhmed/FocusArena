@@ -56,12 +56,13 @@ export function RoomClient({
   const router = useRouter();
   const [state, setState] = useState<RoomState | null>(null);
   const [secLeft, setSecLeft] = useState<number | null>(null);
+  const [clockNow, setClockNow] = useState(0);
+  const [clockOffset, setClockOffset] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [pending, start] = useTransition();
-  const offsetRef = useRef(0);
   const prevStatusRef = useRef<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -76,7 +77,7 @@ export function RoomClient({
       const res = await fetch(`/api/rooms/${code}`, { cache: "no-store" });
       if (!res.ok) return;
       const data = (await res.json()) as RoomState;
-      offsetRef.current = new Date(data.serverNow).getTime() - Date.now();
+      setClockOffset(new Date(data.serverNow).getTime() - Date.now());
 
       const prev = prevStatusRef.current;
       const cur = data.room.status;
@@ -98,28 +99,29 @@ export function RoomClient({
   }, [code, showToast]);
 
   useEffect(() => {
-    void poll();
+    const firstPoll = window.setTimeout(() => void poll(), 0);
     const id = setInterval(() => void poll(), 4000);
-    return () => clearInterval(id);
+    return () => {
+      window.clearTimeout(firstPoll);
+      clearInterval(id);
+    };
   }, [poll]);
 
   /* synchronized countdown */
   useEffect(() => {
     const id = setInterval(() => {
-      setState((s) => {
-        if (!s || !s.room.phaseStartedAt || (s.room.status !== "focus" && s.room.status !== "break")) {
+      const now = Date.now();
+      setClockNow(now);
+      if (!state || !state.room.phaseStartedAt || (state.room.status !== "focus" && state.room.status !== "break")) {
           setSecLeft(null);
-          return s;
-        }
-        const phaseMs = (s.room.status === "focus" ? s.room.focusMinutes : s.room.breakMinutes) * 60_000;
-        const end = new Date(s.room.phaseStartedAt).getTime() + phaseMs;
-        const now = Date.now() + offsetRef.current;
-        setSecLeft(Math.max(0, Math.round((end - now) / 1000)));
-        return s;
-      });
+          return;
+      }
+      const phaseMs = (state.room.status === "focus" ? state.room.focusMinutes : state.room.breakMinutes) * 60_000;
+      const end = new Date(state.room.phaseStartedAt).getTime() + phaseMs;
+      setSecLeft(Math.max(0, Math.round((end - (now + clockOffset)) / 1000)));
     }, 500);
     return () => clearInterval(id);
-  }, []);
+  }, [state, clockOffset]);
 
   const room = state?.room;
   const members = state?.members ?? [];
@@ -332,7 +334,7 @@ export function RoomClient({
             ) : (
               <ul className="max-h-96 space-y-2 overflow-y-auto pr-1">
                 {members.map((m) => {
-                  const present = Date.now() + offsetRef.current - new Date(m.lastSeenAt).getTime() < 45_000;
+                  const present = clockNow + clockOffset - new Date(m.lastSeenAt).getTime() < 45_000;
                   return (
                     <li key={m.id} className="flex items-center gap-3 rounded-xl border border-line bg-white/[0.02] px-3.5 py-2.5">
                       <span className="relative">

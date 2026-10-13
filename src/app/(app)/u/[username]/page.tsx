@@ -9,7 +9,10 @@ import {
 import { getSessionUser } from "@/lib/auth";
 import { getProfile } from "@/server/queries";
 import { Avatar, AdminChip, LevelChip, BadgeIcon } from "@/components/widgets";
-import { BADGES, levelProgress } from "@/lib/xp";
+import { ContributionGrid } from "@/components/contribution-grid";
+import { BADGES, levelProgress, TIER_META, sortByRarity, badgeScore, badgeProgress } from "@/lib/xp";
+import { BadgeChip } from "@/components/badge-rail";
+import { ProjectBreakdown } from "@/components/project-breakdown";
 import { fmtMinutes } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
@@ -27,8 +30,9 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
   const profile = await getProfile(username.toLowerCase());
   if (!profile) notFound();
 
-  const { user, stats, earnedBadges, recentSessions, squads } = profile;
+  const { user, stats, earnedBadges, recentSessions, squads, contributions, projects } = profile;
   const prog = levelProgress(user.xp);
+  const progg = { sessions: stats.sessions, minutes: user.xp, streak: user.streak, tasksDone: stats.tasksDone, level: prog.level };
   const earnedKeys = new Set(earnedBadges.map((b) => b.key));
   const isMe = me.id === user.id;
 
@@ -139,18 +143,76 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
         ))}
       </div>
 
+      {/* Contribution grid */}
+      <ContributionGrid data={contributions} />
+
+      {/* Projects */}
+      {projects.length > 0 && <ProjectBreakdown projects={projects} />}
+
       {/* Badge showcase */}
       <div className="glass-card p-6">
-        <div className="mb-5 flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-base font-bold text-white">
-            <Medal size={17} className="text-gold-400" /> Badge collection
-          </h2>
-          <span className="tnum text-xs text-[#8f8cb0]">{earnedBadges.length} of {BADGES.length} unlocked</span>
+        <div className="mb-5">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="flex items-center gap-2 text-base font-bold text-white">
+                <Medal size={17} className="text-gold-400" /> Badge collection
+              </h2>
+              <p className="mt-1 text-xs text-[#8f8cb0]">
+                Every badge is earned by real focus — no shortcuts.
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="tnum text-2xl font-black text-white">
+                {earnedBadges.length}
+                <span className="text-base font-bold text-[#6d6a8f]">/{BADGES.length}</span>
+              </p>
+              <p className="text-[0.62rem] font-semibold uppercase tracking-[0.14em] text-gold-400">unlocked</p>
+            </div>
+          </div>
+          <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-white/8">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-gold-400 via-brand-500 to-neon-400 transition-all duration-700"
+              style={{ width: `${Math.round((earnedBadges.length / BADGES.length) * 100)}%` }}
+            />
+          </div>
         </div>
+
+        {/* earned highlight rail — icon + name + rarity */}
+        {earnedBadges.length > 0 && (
+          <div className="mb-6 rounded-2xl border border-gold-400/25 bg-gold-400/[0.06] p-4">
+            <div className="mb-3 flex flex-wrap items-center gap-3">
+              <span className="text-[0.62rem] font-bold uppercase tracking-[0.16em] text-gold-400">
+                Earned
+              </span>
+              {(["legendary", "epic", "rare", "common"] as const).map((t) => {
+                const n = earnedBadges.filter((e) => e.def?.tier === t).length;
+                if (n === 0) return null;
+                return (
+                  <span
+                    key={t}
+                    className="rounded-full border px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider"
+                    style={{ borderColor: TIER_META[t].ring, color: TIER_META[t].text }}
+                  >
+                    {n} {TIER_META[t].label}
+                  </span>
+                );
+              })}
+              <span className="tnum ml-auto text-[0.65rem] font-bold text-[#a5a2c8]">
+                {badgeScore(earnedBadges.map((e) => e.key))} rarity points
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {sortByRarity(earnedBadges.map((e) => e.key)).map((b) => (
+                <BadgeChip key={b.key} badge={b} size={26} showTier />
+              ))}
+            </div>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {BADGES.map((b) => {
             const earned = earnedBadges.find((e) => e.key === b.key);
             const locked = !earnedKeys.has(b.key);
+            const prog2 = locked ? badgeProgress(b.key, progg) : null;
             return (
               <div
                 key={b.key}
@@ -176,6 +238,19 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
                     <p className="mt-1 text-[0.6rem] font-semibold text-mint-400/90">
                       {new Date(earned.earnedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}
                     </p>
+                  )}
+                  {prog2 && (
+                    <div className="mt-1.5 w-full">
+                      <div className="h-1 overflow-hidden rounded-full bg-white/10">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-brand-500 to-neon-400"
+                          style={{ width: `${Math.min(100, Math.round((prog2.cur / prog2.req) * 100))}%` }}
+                        />
+                      </div>
+                      <p className="tnum mt-0.5 text-[0.56rem] font-semibold text-[#8f8cb0]">
+                        {prog2.cur}/{prog2.req}
+                      </p>
+                    </div>
                   )}
                 </div>
               </div>

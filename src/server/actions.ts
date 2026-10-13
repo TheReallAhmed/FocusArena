@@ -11,6 +11,7 @@ import {
 } from "@/db/schema";
 import { createSession, destroySession, getSessionUser } from "@/lib/auth";
 import { creditFocusSession, collectBadgeStats, evaluateBadges } from "@/server/core";
+import { randomBytes } from "crypto";
 
 export type FormState = { error?: string } & Record<string, unknown>;
 
@@ -94,10 +95,20 @@ export type FocusResult = {
   newBadges: { key: string; name: string; desc: string; icon: string; hue: number }[];
 };
 
-export async function completeFocusSession(input: { minutes: number; taskId?: number | null }): Promise<FocusResult> {
+export async function completeFocusSession(input: {
+  minutes: number;
+  taskId?: number | null;
+  project?: string | null;
+  note?: string | null;
+}): Promise<FocusResult> {
   const user = await requireUser();
-  const minutes = Math.max(1, Math.min(180, Math.round(input.minutes)));
-  const res = await creditFocusSession(user, { minutes, taskId: input.taskId });
+  const minutes = Math.max(1, Math.min(600, Math.round(input.minutes)));
+  const res = await creditFocusSession(user, {
+    minutes,
+    taskId: input.taskId,
+    project: input.project ?? null,
+    note: input.note ?? null,
+  });
   revalidateAll();
   return { ok: true, gained: minutes, ...res };
 }
@@ -382,6 +393,24 @@ export async function setDailyGoalAction(minutes: number) {
   await db.update(users).set({ dailyGoal: v }).where(eq(users.id, user.id));
   revalidateAll();
   return { ok: true, value: v };
+}
+
+/* ------------------------------ API KEY ------------------------------ */
+
+/** Create (or rotate) a personal API key for scripts, widgets and dashboards. */
+export async function rotateApiKeyAction() {
+  const user = await requireUser();
+  const key = `fa_${randomBytes(20).toString("hex")}`;
+  await db.update(users).set({ apiKey: key }).where(eq(users.id, user.id));
+  revalidatePath("/settings/profile");
+  return { key };
+}
+
+export async function revokeApiKeyAction() {
+  const user = await requireUser();
+  await db.update(users).set({ apiKey: null }).where(eq(users.id, user.id));
+  revalidatePath("/settings/profile");
+  return { ok: true };
 }
 
 /* ------------------------------- ADMIN ------------------------------- */

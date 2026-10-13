@@ -1,43 +1,81 @@
 import Link from "next/link";
 import { Medal } from "lucide-react";
 import { BadgeIcon } from "@/components/widgets";
-import { badgeByKey, BADGES } from "@/lib/xp";
+import { BADGES, TIER_META, sortByRarity, type BadgeDef } from "@/lib/xp";
 
-/** Compact row of earned badge icons — used on leaderboard rows and cards. */
+/** Icon + NAME pill — the readable badge chip used across the app. */
+export function BadgeChip({
+  badge,
+  size = 20,
+  showTier = false,
+}: {
+  badge: BadgeDef;
+  size?: number;
+  showTier?: boolean;
+}) {
+  const t = TIER_META[badge.tier];
+  return (
+    <span
+      className="inline-flex max-w-full items-center gap-1.5 rounded-full border py-0.5 pl-0.5 pr-2.5"
+      style={{
+        borderColor: t.ring,
+        background: `linear-gradient(100deg, hsl(${badge.hue} 85% 60% / 0.16), rgba(255,255,255,0.03))`,
+        boxShadow: `0 0 14px -6px ${t.glow}`,
+      }}
+      title={`${badge.name} — ${badge.desc} (${t.label})`}
+    >
+      <BadgeIcon badge={badge} size={size} />
+      <span className="flex min-w-0 flex-col leading-none">
+        <span className="truncate text-[0.68rem] font-bold text-white">{badge.name}</span>
+        {showTier && (
+          <span className="mt-0.5 text-[0.55rem] font-bold uppercase tracking-wider" style={{ color: t.text }}>
+            {t.label}
+          </span>
+        )}
+      </span>
+    </span>
+  );
+}
+
+/**
+ * Row of earned badges WITH their names — rarest first.
+ * Falls back to a muted counter when the player has none yet.
+ */
 export function BadgeRail({
   keys,
   total,
-  max = 5,
-  size = 22,
+  max = 3,
+  size = 20,
   href,
+  showTier = false,
 }: {
   keys: string[];
   total: number;
   max?: number;
   size?: number;
   href?: string;
+  showTier?: boolean;
 }) {
-  const defs = keys.map(badgeByKey).filter((b): b is NonNullable<typeof b> => Boolean(b)).slice(0, max);
+  const defs = sortByRarity(keys).slice(0, max);
   const extra = total - defs.length;
 
   const body = (
-    <span className="flex items-center gap-1">
+    <span className="flex flex-wrap items-center gap-1.5">
       {defs.length === 0 ? (
-        <span className="chip !px-1.5 !py-0 !text-[0.6rem] !text-[#5c5a78]">
-          <Medal size={9} /> 0/{BADGES.length}
+        <span className="chip !px-2 !py-0.5 !text-[0.6rem] !text-[#5c5a78]">
+          <Medal size={9} /> No badges yet
         </span>
       ) : (
         <>
           {defs.map((b) => (
-            <BadgeIcon key={b.key} badge={b} size={size} />
+            <BadgeChip key={b.key} badge={b} size={size} showTier={showTier} />
           ))}
           {extra > 0 && (
             <span
-              className="flex items-center justify-center rounded-lg border border-line bg-white/[0.04] text-[0.6rem] font-bold text-[#a5a2c8]"
-              style={{ width: size, height: size }}
-              title={`${total} badges earned in total`}
+              className="rounded-full border border-line bg-white/[0.04] px-2 py-1 text-[0.62rem] font-bold text-[#a5a2c8]"
+              title={`${total} of ${BADGES.length} badges unlocked`}
             >
-              +{extra}
+              +{extra} more
             </span>
           )}
         </>
@@ -47,7 +85,7 @@ export function BadgeRail({
 
   if (!href) return body;
   return (
-    <Link href={href} title={`${total} of ${BADGES.length} badges unlocked`}>
+    <Link href={href} className="transition hover:opacity-90">
       {body}
     </Link>
   );

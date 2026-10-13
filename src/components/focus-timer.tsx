@@ -11,6 +11,8 @@ import { useTimer } from "@/components/timer-provider";
 import { toggleTaskAction } from "@/server/actions";
 import { fmtClock } from "@/lib/dates";
 import { BadgeIcon } from "@/components/widgets";
+import { ProjectPicker } from "@/components/project-picker";
+import { SessionNoteInput } from "@/components/session-note";
 
 type Mode = "focus" | "short" | "long";
 type TaskLite = { id: number; title: string; priority: string };
@@ -28,6 +30,7 @@ export function FocusTimer({
   displayName,
   todayMinutes = 0,
   dailyGoal = 120,
+  recentProjects = [],
 }: {
   tasks: TaskLite[];
   initialTaskId: number | null;
@@ -35,6 +38,7 @@ export function FocusTimer({
   displayName: string;
   todayMinutes?: number;
   dailyGoal?: number;
+  recentProjects?: string[];
 }) {
   const router = useRouter();
   const timer = useTimer();
@@ -57,7 +61,7 @@ export function FocusTimer({
   useEffect(() => {
     if (!seededRef.current) {
       seededRef.current = true;
-      seedDaily(doneToday, todayMinutes);
+      seedDaily(doneToday, todayMinutes, dailyGoal);
       if (initialTaskId) pSetTask(initialTaskId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -69,9 +73,14 @@ export function FocusTimer({
       resultRef.current = lastResult;
       setPrevGained(lastResult.gained);
       setXpPop(lastResult.gained);
-      if (lastResult.newBadges.length > 0) setShowBadges(true);
+      const badgeTimer = lastResult.newBadges.length > 0
+        ? window.setTimeout(() => setShowBadges(true), 0)
+        : null;
       const t = setTimeout(() => setXpPop(null), 2000);
-      return () => clearTimeout(t);
+      return () => {
+        clearTimeout(t);
+        if (badgeTimer !== null) clearTimeout(badgeTimer);
+      };
     }
   }, [lastResult]);
 
@@ -424,6 +433,9 @@ export function FocusTimer({
             </ul>
           )}
         </div>
+
+        <ProjectPicker recent={recentProjects} />
+        <SessionNoteInput />
 
         <div className="glass-card p-5">
           <h2 className="text-sm font-bold text-white">Ritual</h2>

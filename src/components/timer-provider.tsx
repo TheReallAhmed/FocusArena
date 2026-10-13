@@ -2,7 +2,7 @@
 
 import {
   createContext, useCallback, useContext, useEffect, useMemo,
-  useRef, useState, type ReactNode,
+  useLayoutEffect, useRef, useState, type ReactNode,
 } from "react";
 import { usePathname } from "next/navigation";
 import { Pause, Play, Timer, Watch, Zap, X, ChevronRight, HelpCircle, Check, Ban } from "lucide-react";
@@ -45,6 +45,9 @@ type StoredState = {
   autoStart: boolean;
   muted: boolean;
   partialMode: PartialMode;
+  project: string | null;
+  note: string | null;
+  goalMinutes: number;
   todayMin: number;
 };
 
@@ -75,7 +78,11 @@ type TimerContextValue = {
   setSettings: (durations: Durations, autoStart: boolean, muted: boolean) => void;
   partialMode: PartialMode;
   setPartialMode: (m: PartialMode) => void;
-  seedDaily: (cycles: number, todayMin: number) => void;
+  project: string | null;
+  setProject: (p: string | null) => void;
+  note: string | null;
+  setNote: (n: string | null) => void;
+  seedDaily: (cycles: number, todayMin: number, goalMinutes?: number) => void;
   /* stopwatch */
   swStatus: RunStatus;
   swElapsedMs: number;
@@ -115,6 +122,9 @@ function defaultState(day: string): StoredState {
     autoStart: false,
     muted: false,
     partialMode: "ask",
+    project: null,
+    note: null,
+    goalMinutes: 120,
     todayMin: 0,
   };
 }
@@ -166,8 +176,10 @@ export function TimerProvider({ children }: { children: ReactNode }) {
   const stRef = useRef<StoredState | null>(null);
   const pathRef = useRef(pathname);
 
-  stRef.current = st;
-  pathRef.current = pathname;
+  useLayoutEffect(() => {
+    stRef.current = st;
+    pathRef.current = pathname;
+  }, [st, pathname]);
 
   const persist = useCallback((next: StoredState) => {
     stRef.current = next;
@@ -205,21 +217,33 @@ export function TimerProvider({ children }: { children: ReactNode }) {
 
   const credit = useCallback(async (minutes: number, taskId: number | null, kind: "focus" | "bank") => {
     try {
-      const res = await completeFocusSession({ minutes, taskId });
+      const res = await completeFocusSession({
+        minutes, taskId,
+        project: stRef.current?.project ?? null,
+        note: stRef.current?.note ?? null,
+      });
       setLastResult(res);
       const cur = stRef.current;
-      if (cur) persist({ ...cur, todayMin: cur.todayMin + minutes });
+      if (cur) {
+        const before = cur.todayMin;
+        const after = before + minutes;
+        persist({ ...cur, todayMin: after, note: null });
+        if (res.leveledUp) {
+          pushCelebration({ icon: "badge", title: `Level ${res.level} reached`, sub: "Your grind is compounding", hue: 205 });
+        }
+        if (before < cur.goalMinutes && after >= cur.goalMinutes) {
+          pushCelebration({ icon: "xp", title: `Daily goal crushed — ${after}m today`, sub: "Bonus rounds still count", hue: 150 });
+          if (!cur.muted) playChime("bank");
+        }
+      }
       if (!stRef.current?.muted) playChime(kind);
 
-      const onFocusPage = pathRef.current === "/focus" || pathRef.current === "/stopwatch";
-      if (!onFocusPage) {
-        pushCelebration({
-          icon: "xp",
-          title: kind === "bank" ? `Banked +${res.gained} XP` : `Round banked — +${res.gained} XP`,
-          sub: `streak ${res.streak}d · level ${res.level}`,
-          hue: 255,
-        });
-      }
+      pushCelebration({
+        icon: "xp",
+        title: kind === "bank" ? `Banked +${res.gained} XP` : `Round banked — +${res.gained} XP`,
+        sub: `streak ${res.streak}d · level ${res.level}`,
+        hue: 255,
+      });
       for (const b of res.newBadges) {
         pushCelebration({ icon: "badge", title: `Badge unlocked: ${b.name}`, sub: b.desc, hue: b.hue });
       }
@@ -310,8 +334,11 @@ export function TimerProvider({ children }: { children: ReactNode }) {
         muted: Boolean(old.muted),
       };
     }
-    setSt(loaded);
-    stRef.current = loaded;
+    const id = window.setTimeout(() => {
+      stRef.current = loaded;
+      setSt(loaded);
+    }, 0);
+    return () => window.clearTimeout(id);
   }, [migrateSettings]);
 
   useEffect(() => {
@@ -374,43 +401,68 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     persist({ ...cur, pomodoro: { ...p, status: "running", endAt: Date.now() + base, remainingMs: null } });
   }, [persist, durationMs]);
 
+  /**
+   * Bank the minutes already spent in the running focus phase.
+   * Used by Reset, Skip and mode-switch so ending a round *never* silently
+   * throws the time away when the user opted into partial crediting.
+   */
+  const bankPartialFocus = useCallback((cur: StoredState): boolean => {
+    const p = cur.pomodoro;
+    if (p.mode !== "focus" || p.status === "idle") return false;
+    if (cur.partialMode !== "yes") return false;
+    const total = durationMs("focus", cur.durations);
+    const left = p.status === "running" ? Math.max(0, (p.endAt ?? 0) - Date.now()) : p.remainingMs ?? total;
+    const elapsedMs = Math.max(0, total - left);
+    // round to the nearest minute, but anything over 30s counts as 1
+    const elapsedMin = elapsedMs >= 30_000 ? Math.max(1, Math.round(elapsedMs / 60_000)) : 0;
+    if (elapsedMin < 1) {
+      pushCelebration({ icon: "xp", title: "Less than a minute — nothing to bank", hue: 20 });
+      return false;
+    }
+    void credit(elapsedMin, p.taskId, "bank");
+    return true;
+  }, [credit, durationMs, pushCelebration]);
+
   const pReset = useCallback(() => {
     const cur = stRef.current;
     if (!cur) return;
     const p = cur.pomodoro;
-    // Stopping mid-round: bank the elapsed minutes only if the user opted in.
-    if (p.mode === "focus" && p.status !== "idle" && cur.partialMode === "yes") {
-      const total = durationMs("focus", cur.durations);
-      const left = p.status === "running" ? Math.max(0, (p.endAt ?? 0) - Date.now()) : p.remainingMs ?? total;
-      const elapsedMin = Math.floor((total - left) / 60_000);
-      if (elapsedMin >= 1) void credit(elapsedMin, p.taskId, "bank");
-    }
+    bankPartialFocus(cur);
     persist({
       ...cur,
       pomodoro: { ...p, status: "idle", endAt: null, remainingMs: null },
     });
-  }, [persist, durationMs, credit]);
+  }, [persist, bankPartialFocus]);
 
   const pSetMode = useCallback((mode: Mode) => {
     const cur = stRef.current;
     if (!cur) return;
+    if (mode !== "focus") bankPartialFocus(cur);
     persist({
       ...cur,
       pomodoro: { ...cur.pomodoro, mode, status: "idle", endAt: null, remainingMs: null },
     });
-  }, [persist]);
+  }, [persist, bankPartialFocus]);
 
   const pSkip = useCallback(() => {
     const cur = stRef.current;
     if (!cur) return;
     const p = cur.pomodoro;
+    const banked = bankPartialFocus(cur);
     const next: Mode = p.mode === "focus" ? (p.cycles + 1) % 4 === 0 ? "long" : "short" : "focus";
     persist({
       ...cur,
-      pomodoro: { ...p, mode: next, status: "idle", endAt: null, remainingMs: null },
+      pomodoro: {
+        ...p,
+        mode: next,
+        status: "idle",
+        endAt: null,
+        remainingMs: null,
+        cycles: banked ? p.cycles + 1 : p.cycles,
+      },
     });
     setMsLeft(durationMs(next, cur.durations));
-  }, [persist, durationMs]);
+  }, [persist, durationMs, bankPartialFocus]);
 
   const pSetTask = useCallback((id: number | null) => {
     const cur = stRef.current;
@@ -427,10 +479,13 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     }
   }, [persist]);
 
-  const seedDaily = useCallback((cycles: number, todayMin: number) => {
+  const seedDaily = useCallback((cycles: number, todayMin: number, goalMinutes?: number) => {
     const cur = stRef.current;
     if (!cur) return;
     // only seed when the store has no data for today yet
+    if (goalMinutes && cur.goalMinutes !== goalMinutes) {
+      persist({ ...stRef.current!, goalMinutes });
+    }
     if (cur.pomodoro.cycles === 0 && cycles > 0) {
       persist({ ...stRef.current!, pomodoro: { ...cur.pomodoro, cycles } });
     }
@@ -493,6 +548,18 @@ export function TimerProvider({ children }: { children: ReactNode }) {
 
   /* --------------------------- CONTEXT VALUE ---------------------------- */
 
+  const setNote = useCallback((n: string | null) => {
+    const cur = stRef.current;
+    if (!cur) return;
+    persist({ ...cur, note: n ? n.slice(0, 200) : null });
+  }, [persist]);
+
+  const setProject = useCallback((proj: string | null) => {
+    const cur = stRef.current;
+    if (!cur) return;
+    persist({ ...cur, project: proj ? proj.trim().slice(0, 40) : null });
+  }, [persist]);
+
   const setPartialMode = useCallback((m: PartialMode) => {
     const cur = stRef.current;
     if (!cur) return;
@@ -537,6 +604,10 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     setSettings,
     partialMode: st?.partialMode ?? "ask",
     setPartialMode,
+    project: st?.project ?? null,
+    setProject,
+    note: st?.note ?? null,
+    setNote,
     seedDaily,
     swStatus: st?.stopwatch.status ?? "idle",
     swElapsedMs,
@@ -544,7 +615,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     swToggle, swSetTask, swBank, swDiscard,
     celebrations,
     dismissCelebration,
-  }), [st, msLeft, swElapsedMs, lastResult, dismissResult, pToggle, pReset, pSkip, pSetMode, pSetTask, setSettings, setPartialMode, seedDaily, swToggle, swSetTask, swBank, swDiscard, celebrations, dismissCelebration]);
+  }), [st, msLeft, swElapsedMs, lastResult, dismissResult, pToggle, pReset, pSkip, pSetMode, pSetTask, setSettings, setPartialMode, setProject, setNote, seedDaily, swToggle, swSetTask, swBank, swDiscard, celebrations, dismissCelebration]);
 
   const pomodoroActive = (st?.pomodoro.status ?? "idle") !== "idle";
   const stopwatchActive = (st?.stopwatch.status ?? "idle") !== "idle";

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { ProfileEditor } from "@/components/profile-editor";
+import { DeveloperCard } from "@/components/developer-card";
 
 export const metadata: Metadata = { title: "Edit profile" };
 export const dynamic = "force-dynamic";
@@ -25,6 +26,7 @@ export default async function EditProfilePage() {
         </p>
       </div>
       <ProfileEditor user={user} />
+      <DeveloperCard apiKey={user.apiKey} />
     </div>
   );
 }

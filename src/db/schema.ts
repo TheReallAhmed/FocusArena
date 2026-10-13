@@ -27,6 +27,7 @@ export const users = pgTable(
     githubUrl: varchar("github_url", { length: 300 }),
     websiteUrl: varchar("website_url", { length: 300 }),
     dailyGoal: integer("daily_goal").notNull().default(120),
+    apiKey: varchar("api_key", { length: 48 }),
     xp: integer("xp").notNull().default(0),
     streak: integer("streak").notNull().default(0),
     lastFocusDay: varchar("last_focus_day", { length: 10 }),
@@ -61,6 +62,8 @@ export const focusSessions = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     taskId: integer("task_id"),
     roomId: integer("room_id"),
+    project: varchar("project", { length: 40 }),
+    note: varchar("note", { length: 200 }),
     minutes: integer("minutes").notNull(),
     day: varchar("day", { length: 10 }).notNull(),
     startedAt: timestamp("started_at", { withTimezone: true })
@@ -70,6 +73,7 @@ export const focusSessions = pgTable(
   (t) => [
     index("focus_sessions_user_day_idx").on(t.userId, t.day),
     index("focus_sessions_day_idx").on(t.day),
+    index("focus_sessions_project_idx").on(t.userId, t.project),
   ]
 );
 
