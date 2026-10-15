@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition, type FormEvent } from "reac
 import { usePathname, useRouter } from "next/navigation";
 import { AlertCircle, Check, LoaderCircle, Save } from "lucide-react";
 import { saveJournalAction } from "@/server/journal";
+import { useLocale } from "@/components/locale-provider";
 
 type JournalFields = { wentWell: string; blockers: string; tomorrowPriority: string };
 
@@ -40,6 +41,8 @@ export function JournalEditor({
   initial: JournalFields;
 }) {
   const router = useRouter();
+  const { locale, t } = useLocale();
+  const ar = locale === "ar";
   const formRef = useRef<HTMLFormElement>(null);
   const dirtyRef = useRef(false);
   const [pending, start] = useTransition();
@@ -95,7 +98,7 @@ export function JournalEditor({
       tomorrowPriority: String(values.get("tomorrowPriority") ?? ""),
     };
     if (complete && Object.values(payload).some((value) => !value.trim())) {
-      setMessage({ text: "Fill in all three prompts before completing this reflection.", error: true });
+      setMessage({ text: ar ? "أكمل الإجابة عن الأسئلة الثلاثة قبل إنهاء التأمل." : "Fill in all three prompts before completing this reflection.", error: true });
       return;
     }
     setMessage(null);
@@ -108,10 +111,10 @@ export function JournalEditor({
         }
         dirtyRef.current = false;
         localStorage.removeItem(draftKey);
-        setMessage({ text: result.message ?? "Saved.", error: false });
+        setMessage({ text: result.message ?? (ar ? "تم الحفظ." : "Saved."), error: false });
         router.refresh();
       } catch {
-        setMessage({ text: "Could not reach the server. Your text remains saved in this browser draft; try again.", error: true });
+        setMessage({ text: ar ? "تعذر الاتصال بالخادم. ما زال نصك محفوظًا كمسودة في هذا المتصفح؛ حاول مجددًا." : "Could not reach the server. Your text remains saved in this browser draft; try again.", error: true });
       }
     });
   };
@@ -120,17 +123,17 @@ export function JournalEditor({
     <form ref={formRef} onChange={onChange} onSubmit={(event) => event.preventDefault()} className="glass-card p-5 sm:p-6">
       <input type="hidden" name="localDay" value={localDay} />
       <input type="hidden" name="timeZone" value={timeZone} />
-      <h2 className="text-sm font-bold text-white">Daily reflection · {localDay}</h2>
-      <p className="mt-1 text-xs text-[#6d6a8f]">Saved privately under your local calendar day ({timeZone}).</p>
+      <h2 className="text-sm font-bold text-white">{ar ? "تأمل اليوم" : "Daily reflection"} · {localDay}</h2>
+      <p className="mt-1 text-xs text-[#6d6a8f]">{ar ? `يُحفظ بشكل خاص ضمن يومك المحلي (${timeZone}).` : `Saved privately under your local calendar day (${timeZone}).`}</p>
       <div className="mt-4 space-y-4">
-        <label className="block"><span className="mb-1.5 block text-xs font-semibold text-[#c7c4de]">What went well today?</span><textarea name="wentWell" defaultValue={initial.wentWell} maxLength={1200} rows={3} className="input resize-y !py-3" placeholder="Name a win, however small…" /></label>
-        <label className="block"><span className="mb-1.5 block text-xs font-semibold text-[#c7c4de]">What blocked your focus?</span><textarea name="blockers" defaultValue={initial.blockers} maxLength={1200} rows={3} className="input resize-y !py-3" placeholder="Notice recurring patterns without judging yourself…" /></label>
-        <label className="block"><span className="mb-1.5 block text-xs font-semibold text-[#c7c4de]">What is your top priority tomorrow?</span><textarea name="tomorrowPriority" defaultValue={initial.tomorrowPriority} maxLength={600} rows={2} className="input resize-y !py-3" placeholder="Choose one clear next action…" /></label>
+        <label className="block"><span className="mb-1.5 block text-xs font-semibold text-[#c7c4de]">{ar ? "ما الشيء الجيد الذي أنجزته اليوم؟" : "What went well today?"}</span><textarea name="wentWell" defaultValue={initial.wentWell} maxLength={1200} rows={3} className="input resize-y !py-3" placeholder={ar ? "اذكر إنجازًا ولو كان بسيطًا…" : "Name a win, however small…"} /></label>
+        <label className="block"><span className="mb-1.5 block text-xs font-semibold text-[#c7c4de]">{ar ? "ما الذي عرقل تركيزك؟" : "What blocked your focus?"}</span><textarea name="blockers" defaultValue={initial.blockers} maxLength={1200} rows={3} className="input resize-y !py-3" placeholder={ar ? "لاحظ الأنماط المتكررة بلا أحكام…" : "Notice recurring patterns without judging yourself…"} /></label>
+        <label className="block"><span className="mb-1.5 block text-xs font-semibold text-[#c7c4de]">{ar ? "ما أولويتك الأهم غدًا؟" : "What is your top priority tomorrow?"}</span><textarea name="tomorrowPriority" defaultValue={initial.tomorrowPriority} maxLength={600} rows={2} className="input resize-y !py-3" placeholder={ar ? "اختر خطوة تالية واضحة…" : "Choose one clear next action…"} /></label>
       </div>
       {message && <p role="status" className={`mt-3 flex items-center gap-2 text-xs ${message.error ? "text-rose-300" : "text-mint-400"}`}>{message.error ? <AlertCircle size={14} /> : <Check size={14} />}{message.text}</p>}
       <div className="mt-4 flex flex-wrap justify-end gap-2">
-        <button type="button" disabled={pending} onClick={() => save(false)} className="btn btn-ghost !py-2.5 text-xs">{pending ? <LoaderCircle size={14} className="animate-spin" /> : <Save size={14} />} Save draft</button>
-        <button type="button" disabled={pending} onClick={() => save(true)} className="btn btn-primary !py-2.5 text-xs">{pending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />} Complete reflection</button>
+        <button type="button" disabled={pending} onClick={() => save(false)} className="btn btn-ghost !py-2.5 text-xs">{pending ? <LoaderCircle size={14} className="animate-spin" /> : <Save size={14} />} {ar ? "حفظ كمسودة" : "Save draft"}</button>
+        <button type="button" disabled={pending} onClick={() => save(true)} className="btn btn-primary !py-2.5 text-xs">{pending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />} {ar ? "إنهاء التأمل" : "Complete reflection"}</button>
       </div>
     </form>
   );

@@ -15,6 +15,7 @@ import { BadgeIcon } from "@/components/widgets";
 import { ProjectPicker } from "@/components/project-picker";
 import { SessionNoteInput } from "@/components/session-note";
 import { DistractionTrap } from "@/components/distraction-trap";
+import { useLocale } from "@/components/locale-provider";
 
 type Mode = "focus" | "short" | "long";
 type TaskLite = { id: number; title: string; priority: string };
@@ -44,6 +45,7 @@ export function FocusTimer({
   recentProjects?: string[];
 }) {
   const router = useRouter();
+  const { t } = useLocale();
   const timer = useTimer();
   const {
     mode, runStatus, msLeft, cycles, taskId, runKey, todayMin, lastResult,
@@ -98,9 +100,9 @@ export function FocusTimer({
   /* tab title */
   const secondsLeft = Math.round(msLeft / 1000);
   useEffect(() => {
-    document.title = `${fmtClock(secondsLeft)} ${MODE_META[mode].label} · FocusArena`;
+    document.title = `${fmtClock(secondsLeft)} ${t(`focus.mode.${mode}`)} · FocusArena`;
     return () => { document.title = "Focus · FocusArena"; };
-  }, [secondsLeft, mode]);
+  }, [secondsLeft, mode, t]);
 
   const toggleZen = useCallback(() => {
     const next = !zen;
@@ -170,7 +172,7 @@ export function FocusTimer({
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-        <span className={`text-[0.65rem] font-bold uppercase tracking-[0.4em] ${meta.chip}`}>{meta.label}</span>
+        <span className={`text-[0.65rem] font-bold uppercase tracking-[0.4em] ${meta.chip}`}>{t(`focus.mode.${mode}`)}</span>
         <span className="tnum font-mono text-[4.2rem] font-bold leading-none tracking-tight text-white sm:text-[4.8rem]">
           {fmtClock(secondsLeft)}
         </span>
@@ -186,7 +188,7 @@ export function FocusTimer({
             />
           ))}
           <span className="tnum ml-1 text-[0.65rem] font-medium text-[#6d6a8f]">
-            {cycles} round{cycles === 1 ? "" : "s"} today
+            {cycles} {t("focus.rounds")}
           </span>
         </div>
       </div>
@@ -205,7 +207,7 @@ export function FocusTimer({
       <button
         onClick={pReset}
         className="btn btn-ghost !rounded-full !p-3.5"
-        title={partialMode === "yes" ? "Stop — elapsed minutes are banked (R)" : "Reset — no credit for partial time (R)"}
+        title={partialMode === "yes" ? t("focus.stopElapsed") : t("focus.resetNoCredit")}
       >
         <RotateCcw size={18} />
       </button>
@@ -216,9 +218,9 @@ export function FocusTimer({
         style={{ boxShadow: `0 12px 42px -8px ${meta.a}` }}
       >
         {running ? <Pause size={20} /> : <Play size={20} className="ml-0.5" />}
-        {running ? "Pause" : runStatus === "paused" ? "Resume" : "Start"}
+        {running ? t("focus.pause") : runStatus === "paused" ? t("focus.resume") : t("focus.start")}
       </button>
-      <button onClick={pSkip} className="btn btn-ghost !rounded-full !p-3.5" title="Skip phase (S)">
+      <button onClick={pSkip} className="btn btn-ghost !rounded-full !p-3.5" title={`${t("focus.skip")} (S)`}>
         <SkipForward size={18} />
       </button>
     </div>
@@ -242,7 +244,7 @@ export function FocusTimer({
                 onClick={() => pSetMode(m)}
                 className={`tab-pill !px-3 !py-1.5 !text-[0.72rem] sm:!px-4 ${mode === m ? "tab-pill-active" : ""}`}
               >
-                {MODE_META[m].label}
+                {t(`focus.mode.${m}`)}
               </button>
             ))}
           </div>
@@ -250,18 +252,18 @@ export function FocusTimer({
             <button
               onClick={() => setSettings(settings.durations, settings.autoStart, !settings.muted)}
               className={`btn btn-ghost !rounded-full !p-2.5 ${settings.muted ? "!text-rose-300" : ""}`}
-              title={settings.muted ? "Unmute (M)" : "Mute (M)"}
+              title={settings.muted ? `${t("focus.unmute")} (M)` : `${t("focus.mute")} (M)`}
             >
               {settings.muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
             </button>
             <button
               onClick={() => setShowSettings((s) => !s)}
               className={`btn btn-ghost !rounded-full !p-2.5 ${showSettings ? "!text-white !border-brand-500/40" : ""}`}
-              title="Timer settings"
+              title={t("focus.settings")}
             >
               <Settings2 size={16} />
             </button>
-            <button onClick={toggleZen} className="btn btn-ghost !rounded-full !p-2.5 hover:!text-neon-300" title="Zen mode — fullscreen">
+            <button onClick={toggleZen} className="btn btn-ghost !rounded-full !p-2.5 hover:!text-neon-300" title={t("focus.fullscreen")}>
               <Maximize2 size={16} />
             </button>
           </div>
@@ -270,15 +272,15 @@ export function FocusTimer({
         {/* persistence notice */}
         <div className="relative mt-3 flex justify-center">
           <span className="chip !border-mint-400/30 !bg-mint-400/8 !text-[0.62rem] !font-semibold !text-mint-400/90">
-            <Zap size={10} /> Keeps running while you navigate — even if you leave the site
+            <Zap size={10} /> {t("focus.keepRunning")}
           </span>
         </div>
         {partialMode !== "ask" && (
           <div className="relative mt-2 flex justify-center">
             <span className="chip !py-0.5 !text-[0.6rem] !font-semibold">
               {partialMode === "yes"
-                ? "Partial time counts if you stop early"
-                : "Only completed rounds count"}
+                ? t("focus.partialYes")
+                : t("focus.partialNo")}
             </span>
           </div>
         )}
@@ -289,7 +291,7 @@ export function FocusTimer({
             {(["focus", "short", "long"] as Mode[]).map((m) => (
               <label key={m} className="block">
                 <span className="mb-1 block text-[0.65rem] font-bold uppercase tracking-[0.14em] text-[#8f8cb0]">
-                  {MODE_META[m].label} (min)
+                  {t(`focus.mode.${m}`)} ({t("focus.durationMin")})
                 </span>
                 <input
                   type="number" min={1} max={120} value={settings.durations[m]}
@@ -299,7 +301,7 @@ export function FocusTimer({
               </label>
             ))}
             <label className="flex items-end justify-between gap-2 rounded-xl border border-line bg-white/[0.03] px-3 py-2.5">
-              <span className="text-[0.65rem] font-bold uppercase tracking-[0.14em] text-[#8f8cb0]">Auto-start</span>
+              <span className="text-[0.65rem] font-bold uppercase tracking-[0.14em] text-[#8f8cb0]">{t("focus.autoStart")}</span>
               <input
                 type="checkbox" checked={settings.autoStart}
                 onChange={(e) => setSettings(settings.durations, e.target.checked, settings.muted)}
@@ -309,13 +311,13 @@ export function FocusTimer({
 
             <div className="sm:col-span-4">
               <span className="mb-1.5 block text-[0.65rem] font-bold uppercase tracking-[0.14em] text-[#8f8cb0]">
-                If you stop mid-round
+                {t("focus.midRound")}
               </span>
               <div className="flex flex-wrap gap-2">
                 {([
-                  { k: "yes", label: "Count the minutes" },
-                  { k: "no", label: "Only completed rounds" },
-                  { k: "ask", label: "Ask me again" },
+                  { k: "yes", label: t("focus.countMinutes") },
+                  { k: "no", label: t("focus.partialNo") },
+                  { k: "ask", label: t("focus.ask") },
                 ] as const).map((o) => (
                   <button
                     key={o.k}
@@ -336,10 +338,10 @@ export function FocusTimer({
         {/* today goal chip */}
         {activeCommitment?.runKey === runKey && activeCommitment.details && runStatus !== "idle" && (
           <div className="relative mx-auto mt-3 max-w-lg rounded-xl border border-brand-500/25 bg-brand-500/[0.06] px-4 py-3 text-center">
-            <p className="text-[0.62rem] font-bold uppercase tracking-[0.16em] text-brand-300">Your commitment · private</p>
+            <p className="text-[0.62rem] font-bold uppercase tracking-[0.16em] text-brand-300">{t("focus.yourCommitment")}</p>
             <p className="mt-1 text-sm font-semibold text-white">{activeCommitment.details.intendedOutcome}</p>
-            {activeCommitment.details.consequence && <p className="mt-1 text-[0.68rem] text-[#8f8cb0]">Personal consequence: {activeCommitment.details.consequence}</p>}
-            {activeCommitment.details.energyRating && <p className="mt-1 text-[0.62rem] text-[#6d6a8f]">Starting energy: {activeCommitment.details.energyRating}/5</p>}
+            {activeCommitment.details.consequence && <p className="mt-1 text-[0.68rem] text-[#8f8cb0]">{t("focus.personalConsequence")}: {activeCommitment.details.consequence}</p>}
+            {activeCommitment.details.energyRating && <p className="mt-1 text-[0.62rem] text-[#6d6a8f]">{t("focus.energy")}: {activeCommitment.details.energyRating}/5</p>}
           </div>
         )}
 
@@ -352,8 +354,8 @@ export function FocusTimer({
             title={`Daily goal: ${dailyGoal}m`}
           >
             <Flame size={12} className={todayMin >= dailyGoal ? "text-gold-400" : "text-brand-300"} />
-            Today: {Math.round(todayMin)}m / {dailyGoal}m
-            {todayMin >= dailyGoal && " · goal crushed"}
+            {t("dashboard.today")}: {Math.round(todayMin)}m / {dailyGoal}m
+            {todayMin >= dailyGoal && ` · ${t("tasks.completion")}`}
           </span>
         </div>
 
@@ -361,11 +363,11 @@ export function FocusTimer({
         {lastResult && (
           <div className="relative mx-auto mt-2 flex max-w-sm flex-wrap items-center justify-center gap-2 animate-fade-up">
             <span className="chip !text-[0.7rem]">
-              <Flame size={12} className="text-gold-400" /> {lastResult.streak} day streak
+              <Flame size={12} className="text-gold-400" /> {lastResult.streak} {t("dashboard.days")}
             </span>
             {lastResult.leveledUp && (
               <span className="chip !border-neon-400/50 !bg-neon-400/15 !text-neon-300 !text-[0.7rem] !font-bold">
-                <Trophy size={12} /> LEVEL {lastResult.level} REACHED
+                <Trophy size={12} /> {t("common.level").toUpperCase()} {lastResult.level}
               </span>
             )}
             {prevGained !== null && (
@@ -380,7 +382,7 @@ export function FocusTimer({
 
         <p className="relative mt-4 hidden items-center justify-center gap-4 text-[0.68rem] text-[#5c5a78] sm:flex">
           <Keyboard size={12} />
-          <span><b className="text-[#8f8cb0]">Space</b> start/pause</span>
+          <span><b className="text-[#8f8cb0]">Space</b> {t("focus.start")}/{t("focus.pause")}</span>
           <span><b className="text-[#8f8cb0]">R</b> reset</span>
           <span><b className="text-[#8f8cb0]">S</b> skip</span>
           <span><b className="text-[#8f8cb0]">M</b> mute</span>
@@ -398,9 +400,9 @@ export function FocusTimer({
               <button
                 onClick={completeCurrentTask}
                 className="btn btn-ghost shrink-0 !px-3 !py-1.5 !text-[0.7rem] hover:!text-mint-400"
-                title="Mark task done"
+                title={t("tasks.markDone")}
               >
-                <CheckCircle2 size={14} /> Done
+                <CheckCircle2 size={14} /> {t("focus.completeTask")}
               </button>
               <button onClick={() => pSetTask(null)} className="shrink-0 text-[#6d6a8f] hover:text-white" title="Unlink">
                 <X size={15} />
@@ -408,7 +410,7 @@ export function FocusTimer({
             </div>
           ) : (
             <p className="text-center text-xs text-[#6d6a8f]">
-              Free focus — pick a task on the right to sprint against it.
+              {t("focus.noTask")}
             </p>
           )}
         </div>
@@ -419,15 +421,15 @@ export function FocusTimer({
         <div className="glass-card p-5">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-sm font-bold text-white">
-              <ListChecks size={15} className="text-brand-300" /> Attack a task
+              <ListChecks size={15} className="text-brand-300" /> {t("focus.chooseTask")}
             </h2>
             {saving && <LoaderCircle size={14} className="animate-spin text-[#6d6a8f]" />}
           </div>
           {tasks.length === 0 ? (
             <div className="py-5 text-center">
-              <p className="text-sm text-[#8f8cb0]">No open tasks.</p>
+              <p className="text-sm text-[#8f8cb0]">{t("tasks.allClear")}</p>
               <a href="/tasks" className="mt-2 inline-block text-xs font-semibold text-brand-300 hover:text-brand-200">
-                Create one on the Tasks page →
+                {t("tasks.add")} →
               </a>
             </div>
           ) : (
@@ -461,7 +463,7 @@ export function FocusTimer({
         <SessionNoteInput />
 
         <div className="glass-card p-5">
-          <h2 className="text-sm font-bold text-white">Ritual</h2>
+          <h2 className="text-sm font-bold text-white">{t("focus.settingsTitle")}</h2>
           <ul className="mt-3 space-y-2.5 text-[0.83rem] leading-relaxed text-[#8f8cb0]">
             <li className="flex gap-2.5"><span className="tnum font-bold text-brand-300">01</span> One task per round. No multitasking.</li>
             <li className="flex gap-2.5"><span className="tnum font-bold text-brand-300">02</span> Timer survives navigation — feel free to check the board mid-round.</li>

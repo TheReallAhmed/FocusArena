@@ -12,7 +12,7 @@ import {
 import { createSession, destroySession, getSessionUser } from "@/lib/auth";
 import { creditFocusSession, collectBadgeStats, evaluateBadges } from "@/server/core";
 import { randomBytes } from "crypto";
-import { perkByKey } from "@/lib/perks";
+import { perkByKey, type PerkCategory } from "@/lib/perks";
 
 export type FormState = { error?: string } & Record<string, unknown>;
 
@@ -29,7 +29,7 @@ async function requireAdmin(): Promise<User> {
 }
 
 function revalidateAll() {
-  for (const p of ["/dashboard", "/focus", "/history", "/settings/profile", "/tasks", "/calendar", "/leaderboard", "/squads", "/rooms", "/admin"]) {
+  for (const p of ["/dashboard", "/focus", "/history", "/settings", "/settings/profile", "/shop", "/tasks", "/calendar", "/leaderboard", "/squads", "/rooms", "/admin"]) {
     revalidatePath(p);
   }
 }
@@ -416,6 +416,14 @@ export async function revokeApiKeyAction() {
   return { ok: true };
 }
 
+export async function updateLocaleAction(locale: string) {
+  const user = await requireUser();
+  if (locale !== "en" && locale !== "ar") return { error: "Choose a supported language." };
+  await db.update(users).set({ locale }).where(eq(users.id, user.id));
+  for (const path of ["/dashboard", "/focus", "/distractions", "/duels", "/journal", "/stopwatch", "/rooms", "/tasks", "/calendar", "/history", "/leaderboard", "/squads", "/settings", "/settings/profile", "/shop"]) revalidatePath(path);
+  return { ok: true as const, locale };
+}
+
 /* ------------------------- XP PERKS + PRIVACY ------------------------- */
 
 export async function purchasePerkAction(rewardKey: string) {
@@ -437,24 +445,34 @@ export async function purchasePerkAction(rewardKey: string) {
     await tx.insert(userPerks).values({ userId: user.id, rewardKey: reward.key, category: reward.category, xpCost: reward.price });
     return { ok: true as const, alreadyOwned: false, xp: updated.xp };
   });
-  revalidatePath("/settings/profile"); revalidatePath("/dashboard"); revalidatePath("/leaderboard"); revalidatePath(`/u/${user.username}`);
+  revalidatePath("/shop"); revalidatePath("/dashboard"); revalidatePath("/leaderboard"); revalidatePath(`/u/${user.username}`);
   return result;
 }
 
-export async function equipPerkAction(rewardKey: string | null) {
+export async function equipPerkAction(rewardKey: string | null, category?: PerkCategory) {
   const user = await requireUser();
   if (rewardKey === null) {
-    await db.update(users).set({ equippedTitle: null, equippedFrame: null }).where(eq(users.id, user.id));
+    const cleared = category === "title" ? { equippedTitle: null }
+      : category === "frame" ? { equippedFrame: null }
+      : category === "logo" ? { equippedLogo: null }
+      : category === "color" ? { equippedColor: null }
+      : category === "icon" ? { equippedIcon: null }
+      : { equippedTitle: null, equippedFrame: null, equippedLogo: null, equippedColor: null, equippedIcon: null };
+    await db.update(users).set(cleared).where(eq(users.id, user.id));
   } else {
     const reward = perkByKey(String(rewardKey).slice(0, 40));
     if (!reward) return { error: "That cosmetic is not in the store." };
     const [owned] = await db.select({ rewardKey: userPerks.rewardKey }).from(userPerks)
       .where(and(eq(userPerks.userId, user.id), eq(userPerks.rewardKey, reward.key))).limit(1);
     if (!owned) return { error: "Purchase this cosmetic before equipping it." };
-    await db.update(users).set(reward.category === "title" ? { equippedTitle: reward.key } : { equippedFrame: reward.key })
-      .where(eq(users.id, user.id));
+    const equipped = reward.category === "title" ? { equippedTitle: reward.key }
+      : reward.category === "frame" ? { equippedFrame: reward.key }
+      : reward.category === "logo" ? { equippedLogo: reward.key }
+      : reward.category === "color" ? { equippedColor: reward.key }
+      : { equippedIcon: reward.key };
+    await db.update(users).set(equipped).where(eq(users.id, user.id));
   }
-  revalidatePath("/settings/profile"); revalidatePath("/leaderboard"); revalidatePath(`/u/${user.username}`);
+  revalidatePath("/shop"); revalidatePath("/settings/profile"); revalidatePath("/leaderboard"); revalidatePath("/dashboard"); revalidatePath(`/u/${user.username}`);
   return { ok: true };
 }
 
@@ -462,7 +480,7 @@ export async function updatePublicAccountabilityAction(enabled: boolean) {
   const user = await requireUser();
   if (typeof enabled !== "boolean") return { error: "Choose a valid privacy setting." };
   await db.update(users).set({ publicAccountability: enabled }).where(eq(users.id, user.id));
-  revalidatePath("/settings/profile"); revalidatePath("/leaderboard"); revalidatePath("/dashboard");
+  revalidatePath("/settings"); revalidatePath("/leaderboard"); revalidatePath("/dashboard");
   return { ok: true };
 }
 

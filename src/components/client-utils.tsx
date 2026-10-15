@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { Check, Copy, LogOut } from "lucide-react";
 import { logoutAction } from "@/server/actions";
+import { useLocale } from "@/components/locale-provider";
 
 /* Scroll-reveal wrapper */
 export function Reveal({ children, delay = 0, className = "" }: { children: ReactNode; delay?: number; className?: string }) {
@@ -35,6 +36,8 @@ export function Reveal({ children, delay = 0, className = "" }: { children: Reac
 
 export function CopyButton({ text, label = "Copy code" }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false);
+  const { locale } = useLocale();
+  const visibleLabel = locale === "ar" && label === "Copy code" ? "نسخ الرمز" : label;
   return (
     <button
       type="button"
@@ -50,32 +53,34 @@ export function CopyButton({ text, label = "Copy code" }: { text: string; label?
       }}
     >
       {copied ? <Check size={14} className="text-mint-400" /> : <Copy size={14} />}
-      {copied ? "Copied!" : label}
+      {copied ? (locale === "ar" ? "تم النسخ!" : "Copied!") : visibleLabel}
     </button>
   );
 }
 
 export function LogoutButton() {
   const [pending, start] = useTransition();
+  const { t } = useLocale();
   return (
     <button
       type="button"
       disabled={pending}
       onClick={() => start(() => logoutAction())}
       className="nav-link w-full text-left !text-[#8f8cb0] hover:!text-rose-300"
-      title="Log out"
+      title={t("nav.logout")}
     >
       <LogOut size={17} />
-      <span>{pending ? "Leaving..." : "Log out"}</span>
+      <span>{pending ? t("common.working") : t("nav.logout")}</span>
     </button>
   );
 }
 
 export function RefreshButton() {
   const router = useRouter();
+  const { locale } = useLocale();
   return (
     <button type="button" className="chip hover:text-white" onClick={() => router.refresh()}>
-      Refresh
+      {locale === "ar" ? "تحديث" : "Refresh"}
     </button>
   );
 }

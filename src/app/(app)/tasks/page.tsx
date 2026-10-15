@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { getAllTasks } from "@/server/queries";
 import { TasksClient } from "@/components/tasks-client";
+import { normalizeLocale, t } from "@/lib/i18n";
 
 export const metadata: Metadata = { title: "Tasks" };
 export const dynamic = "force-dynamic";
@@ -10,6 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function TasksPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  const locale = normalizeLocale(user.locale);
 
   const items = await getAllTasks(user);
   const done = items.filter((t) => t.done).length;
@@ -18,13 +20,13 @@ export default async function TasksPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.25em] text-brand-300">Task Flow</p>
+          <p className="text-xs font-bold uppercase tracking-[0.25em] text-brand-300">{locale === "ar" ? "مسار المهام" : "Task Flow"}</p>
           <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-white sm:text-3xl">
-            Your <span className="text-gradient">hit list</span>
+            {locale === "ar" ? t(locale,"tasks.title") : <>Your <span className="text-gradient">hit list</span></>}
           </h1>
         </div>
         <div className="tnum text-sm text-[#8f8cb0]">
-          <span className="font-bold text-mint-400">{done}</span> / {items.length} completed
+          <span className="font-bold text-mint-400">{done}</span> / {items.length} {t(locale,"tasks.completed")}
         </div>
       </div>
       <TasksClient initialTasks={items} />

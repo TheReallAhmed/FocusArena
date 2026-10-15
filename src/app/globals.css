@@ -88,6 +88,14 @@ body {
   overflow-x: hidden;
 }
 
+[dir="rtl"], .font-arabic {
+  font-family: "Noto Sans Arabic", "Segoe UI", Tahoma, Arial, var(--font-sans);
+}
+
+[dir="rtl"] .text-left { text-align: right; }
+[dir="rtl"] .nav-link { text-align: start; }
+[dir="rtl"] input, [dir="rtl"] textarea, [dir="rtl"] select { text-align: start; }
+
 ::selection {
   background: rgba(124, 108, 255, 0.45);
   color: #fff;

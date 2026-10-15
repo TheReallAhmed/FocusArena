@@ -7,6 +7,7 @@ import { addTaskAction, toggleTaskAction, deleteTaskAction } from "@/server/acti
 import { EmptyState, BadgeIcon } from "@/components/widgets";
 import { fmtMinutes } from "@/lib/dates";
 import type { Task } from "@/db/schema";
+import { useLocale } from "@/components/locale-provider";
 
 const PRIO_STYLE: Record<string, { dot: string; label: string; cls: string }> = {
   high: { dot: "bg-rose-400", label: "High", cls: "border-rose-500/40 bg-rose-500/12 text-rose-300" },
@@ -17,6 +18,7 @@ const PRIO_STYLE: Record<string, { dot: string; label: string; cls: string }> = 
 type BadgeToast = { key: string; name: string; desc: string; icon: string; hue: number };
 
 export function TasksClient({ initialTasks }: { initialTasks: Task[] }) {
+  const { t } = useLocale();
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState("normal");
   const [pending, start] = useTransition();
@@ -52,7 +54,7 @@ export function TasksClient({ initialTasks }: { initialTasks: Task[] }) {
         <div className="glass-card flex flex-col gap-3 p-4 sm:flex-row">
           <input
             className="input flex-1"
-            placeholder="What needs to get done?"
+            placeholder={t("tasks.placeholder")}
             value={title}
             maxLength={200}
             onChange={(e) => setTitle(e.target.value)}
@@ -64,13 +66,13 @@ export function TasksClient({ initialTasks }: { initialTasks: Task[] }) {
               onChange={(e) => setPriority(e.target.value)}
               className="input !w-28 appearance-none"
             >
-              <option value="low">Low</option>
-              <option value="normal">Normal</option>
-              <option value="high">High</option>
+              <option value="low">{t("tasks.low")}</option>
+              <option value="normal">{t("tasks.normal")}</option>
+              <option value="high">{t("tasks.high")}</option>
             </select>
             <button onClick={add} disabled={pending || title.trim().length < 2} className="btn btn-primary shrink-0">
               {pending ? <LoaderCircle size={16} className="animate-spin" /> : <Plus size={16} />}
-              Add
+              {t("tasks.add")}
             </button>
           </div>
         </div>
@@ -78,10 +80,10 @@ export function TasksClient({ initialTasks }: { initialTasks: Task[] }) {
         {/* Active list */}
         <div className="glass-card p-5">
           <h2 className="mb-3 text-sm font-bold text-white">
-            Open <span className="tnum ml-1 text-xs font-semibold text-[#8f8cb0]">{active.length}</span>
+            {t("tasks.open")} <span className="tnum ml-1 text-xs font-semibold text-[#8f8cb0]">{active.length}</span>
           </h2>
           {active.length === 0 ? (
-            <EmptyState icon={Circle} title="All clear" hint="Add a task above and sprint on it." />
+            <EmptyState icon={Circle} title={t("tasks.allClear")} hint={t("tasks.hint")} />
           ) : (
             <ul className="space-y-2">
               {active.map((t) => (
@@ -95,7 +97,7 @@ export function TasksClient({ initialTasks }: { initialTasks: Task[] }) {
         {completed.length > 0 && (
           <div className="glass-card p-5">
             <h2 className="mb-3 text-sm font-bold text-white">
-              Completed <span className="tnum ml-1 text-xs font-semibold text-[#8f8cb0]">{completed.length}</span>
+              {t("tasks.completed")} <span className="tnum ml-1 text-xs font-semibold text-[#8f8cb0]">{completed.length}</span>
             </h2>
             <ul className="space-y-2">
               {completed.map((t) => (
@@ -109,7 +111,7 @@ export function TasksClient({ initialTasks }: { initialTasks: Task[] }) {
       {/* Side column */}
       <div className="space-y-5">
         <div className="glass-card p-5">
-          <h2 className="text-sm font-bold text-white">Completion</h2>
+          <h2 className="text-sm font-bold text-white">{t("tasks.completion")}</h2>
           <p className="tnum mt-3 text-4xl font-bold text-white">{pct}%</p>
           <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-white/8">
             <div
@@ -118,24 +120,24 @@ export function TasksClient({ initialTasks }: { initialTasks: Task[] }) {
             />
           </div>
           <p className="mt-2.5 text-xs text-[#8f8cb0]">
-            {completed.length} of {initialTasks.length} tasks crushed
+            {completed.length} / {initialTasks.length} {t("tasks.crushed")}
           </p>
         </div>
 
         <div className="glass-card p-5">
-          <h2 className="text-sm font-bold text-white">How it works</h2>
+          <h2 className="text-sm font-bold text-white">{t("tasks.how")}</h2>
           <ul className="mt-3 space-y-2.5 text-[0.83rem] leading-relaxed text-[#8f8cb0]">
             <li className="flex gap-2.5">
               <Zap size={14} className="mt-0.5 shrink-0 text-brand-300" />
-              Hit the bolt on any task to jump into a timed focus sprint with it.
+              {t("focus.chooseTask")}.
             </li>
             <li className="flex gap-2.5">
               <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-mint-400" />
-              Minutes you focus on a task are tracked on it — see who does the deep work.
+              {t("focus.keepRunning")}
             </li>
             <li className="flex gap-2.5">
               <Check size={14} className="mt-0.5 shrink-0 text-gold-400" />
-              Completing 10 and 25 tasks unlocks the Sharpshooter and Taskmaster badges.
+              {t("tasks.badge")}
             </li>
           </ul>
         </div>
@@ -147,7 +149,7 @@ export function TasksClient({ initialTasks }: { initialTasks: Task[] }) {
           <div className="glass-card flex items-center gap-3 !rounded-2xl border-gold-400/40 px-5 py-3.5 shadow-[0_10px_50px_-10px_rgba(251,191,36,0.35)]">
             <BadgeIcon badge={badgeToast} size={42} />
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-gold-400">Badge unlocked</p>
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-gold-400">{t("tasks.badge")}</p>
               <p className="text-sm font-bold text-white">{badgeToast.name}</p>
             </div>
           </div>
@@ -168,6 +170,7 @@ function TaskRow({
   onDelete: (id: number) => void;
   pending: boolean;
 }) {
+  const { t } = useLocale();
   const prio = PRIO_STYLE[task.priority] ?? PRIO_STYLE.normal;
   return (
     <li
@@ -183,7 +186,7 @@ function TaskRow({
             ? "border-mint-400 bg-mint-400/25 text-mint-400"
             : "border-white/25 text-transparent hover:border-mint-400 hover:text-mint-400/60"
         }`}
-        title={task.done ? "Reopen" : "Mark done"}
+        title={task.done ? t("tasks.reopen") : t("tasks.markDone")}
       >
         <Check size={13} strokeWidth={3} />
       </button>
@@ -192,15 +195,15 @@ function TaskRow({
           {task.title}
         </p>
         {task.focusMinutes > 0 && (
-          <p className="tnum mt-0.5 text-[0.65rem] text-brand-300/80">{fmtMinutes(task.focusMinutes)} of deep work</p>
+          <p className="tnum mt-0.5 text-[0.65rem] text-brand-300/80">{fmtMinutes(task.focusMinutes)}</p>
         )}
       </div>
-      <span className={`chip shrink-0 !px-2 !py-0.5 !text-[0.62rem] !font-bold ${prio.cls}`}>{prio.label}</span>
+      <span className={`chip shrink-0 !px-2 !py-0.5 !text-[0.62rem] !font-bold ${prio.cls}`}>{t(`tasks.${task.priority === "high" || task.priority === "low" ? task.priority : "normal"}`)}</span>
       {!task.done && (
         <Link
           href={`/focus?task=${task.id}`}
           className="shrink-0 text-[#6d6a8f] transition hover:text-brand-300"
-          title="Focus on this task"
+          title={t("tasks.focus")}
         >
           <Zap size={15} />
         </Link>
@@ -209,7 +212,7 @@ function TaskRow({
         onClick={() => onDelete(task.id)}
         disabled={pending}
         className="shrink-0 text-[#4a4866] opacity-0 transition group-hover:opacity-100 hover:!text-rose-400"
-        title="Delete"
+        title={t("tasks.delete")}
       >
         <Trash2 size={15} />
       </button>

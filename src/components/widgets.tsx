@@ -5,7 +5,7 @@ import {
   Flag, Handshake, Brain, Star, Atom, ShieldCheck, type LucideIcon,
 } from "lucide-react";
 import type { BadgeDef } from "@/lib/xp";
-import { PERK_CATALOG } from "@/lib/perks";
+import { PERK_CATALOG, perkColor } from "@/lib/perks";
 
 /* ------------------------------ Avatar ------------------------------ */
 
@@ -25,7 +25,7 @@ export function Avatar({
   frameKey?: string | null;
 }) {
   const initial = (name || "?").trim().charAt(0).toUpperCase();
-  const frameColor = frameKey === "gold-frame" ? "#fbbf24" : frameKey === "neon-frame" ? "#4ce3ff" : frameKey === "aurora-frame" ? "#a78bfa" : null;
+  const frameColor = perkColor(frameKey) ?? null;
   return (
     <span
       className="inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full font-bold text-white"
@@ -52,6 +52,25 @@ export function PerkTitleBadge({ rewardKey }: { rewardKey: string | null }) {
   const reward = PERK_CATALOG.find((item) => item.key === rewardKey && item.category === "title");
   if (!reward) return null;
   return <span className="chip !border-neon-400/30 !bg-neon-400/8 !px-2 !py-0.5 !text-[0.62rem] !text-neon-300">{reward.name}</span>;
+}
+
+const COSMETIC_ICONS: Record<string, LucideIcon> = { zap: Zap, flame: Flame, brain: Brain, moon: Moon, sun: Sun, target: Target, gem: Gem, leaf: Leaf, star: Star, atom: Atom, shield: ShieldCheck, sparkles: Star, crown: Crown, rocket: Rocket, waves: Layers, heart: Award, snowflake: Moon, comet: Rocket, orbit: Atom, flower: Leaf, wolf: Flame, eclipse: Moon };
+
+export function CosmeticMark({ rewardKey, size = 14, className = "" }: { rewardKey: string | null; size?: number; className?: string }) {
+  if (!rewardKey) return null;
+  const reward = PERK_CATALOG.find((item) => item.key === rewardKey);
+  if (!reward) return null;
+  const Icon = COSMETIC_ICONS[reward.symbol ?? ""] ?? Star;
+  return <span title={reward.name} className={`inline-flex shrink-0 items-center justify-center ${className}`} style={{ color: reward.color ?? "#b3aaff" }}><Icon size={size} strokeWidth={2.2}/></span>;
+}
+
+export function StyledDisplayName({ name, colorKey, iconKey, logoKey, className = "" }: { name: string; colorKey?: string | null; iconKey?: string | null; logoKey?: string | null; className?: string }) {
+  const color = perkColor(colorKey) ?? undefined;
+  return <span className={`inline-flex min-w-0 items-center gap-1.5 ${className}`} style={color ? { color, textShadow: `0 0 16px ${color}66` } : undefined}>
+    <span className="min-w-0 truncate">{name}</span>
+    {iconKey && <CosmeticMark rewardKey={iconKey} size={13}/>}
+    {logoKey && <CosmeticMark rewardKey={logoKey} size={13}/>}
+  </span>;
 }
 
 /* ---------------------------- Level chip ---------------------------- */

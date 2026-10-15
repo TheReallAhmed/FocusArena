@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { FolderGit2, Check, X } from "lucide-react";
 import { useTimer } from "@/components/timer-provider";
+import { useLocale } from "@/components/locale-provider";
 
 /**
  * Lightweight project tagger — type a name or pick a recent one.
@@ -11,6 +12,8 @@ import { useTimer } from "@/components/timer-provider";
  */
 export function ProjectPicker({ recent, accent = "#7c6cff" }: { recent: string[]; accent?: string }) {
   const { project, setProject } = useTimer();
+  const { locale } = useLocale();
+  const ar = locale === "ar";
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(project ?? "");
 
@@ -23,10 +26,10 @@ export function ProjectPicker({ recent, accent = "#7c6cff" }: { recent: string[]
     <div className="glass-card p-5">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="flex items-center gap-2 text-sm font-bold text-white">
-          <FolderGit2 size={15} style={{ color: accent }} /> Project tag
+          <FolderGit2 size={15} style={{ color: accent }} /> {ar ? "وسم المشروع" : "Project tag"}
         </h2>
         {project && (
-          <button onClick={() => setProject(null)} className="text-[#6d6a8f] transition hover:text-rose-300" title="Clear">
+          <button onClick={() => setProject(null)} className="text-[#6d6a8f] transition hover:text-rose-300" title={ar ? "مسح" : "Clear"}>
             <X size={14} />
           </button>
         )}
@@ -37,7 +40,7 @@ export function ProjectPicker({ recent, accent = "#7c6cff" }: { recent: string[]
           <input
             autoFocus
             className="input !py-2 text-sm"
-            placeholder="e.g. focusarena-api"
+            placeholder={ar ? "مثال: مشروع التخرج" : "e.g. focusarena-api"}
             value={draft}
             maxLength={40}
             onChange={(e) => setDraft(e.target.value)}
@@ -61,7 +64,7 @@ export function ProjectPicker({ recent, accent = "#7c6cff" }: { recent: string[]
           }}
         >
           <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: project ? accent : "#4a4866" }} />
-          <span className="min-w-0 flex-1 truncate font-mono">{project ?? "no project — click to tag"}</span>
+          <span className="min-w-0 flex-1 truncate font-mono">{project ?? (ar ? "لا يوجد مشروع — اضغط لإضافة وسم" : "no project — click to tag")}</span>
         </button>
       )}
 
@@ -81,7 +84,7 @@ export function ProjectPicker({ recent, accent = "#7c6cff" }: { recent: string[]
         </div>
       )}
       <p className="mt-3 text-[0.65rem] leading-relaxed text-[#5c5a78]">
-        Tagged minutes show up in your project breakdown, the export file and the personal API.
+        {ar ? "تظهر دقائق المشروع في تحليلك وملف التصدير وواجهة الحساب." : "Tagged minutes show up in your project breakdown, the export file and the personal API."}
       </p>
     </div>
   );

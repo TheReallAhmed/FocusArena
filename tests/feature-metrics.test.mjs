@@ -8,6 +8,7 @@ import {
 } from "../src/lib/feature-metrics.ts";
 import { commitmentFulfillment, energyOutcomeStats, verificationStatus } from "../src/lib/accountability-metrics.ts";
 import { isValidTimeZone, localDayInTimeZone } from "../src/lib/time-zones.ts";
+import { PERK_CATALOG, perkByKey, perkColor } from "../src/lib/perks.ts";
 
 test("focus quality v1 is deterministic and bounded", () => {
   assert.equal(calculateFocusQuality(0), 100);
@@ -73,4 +74,15 @@ test("optional proof-of-work statuses are bounded and do not treat missed checks
   assert.equal(verificationStatus(true, 1, 1), "verified");
   assert.equal(verificationStatus(true, 2, 1), "partially_verified");
   assert.equal(verificationStatus(true, 1, 0, true), "unavailable");
+});
+
+test("cosmetic XP catalog has unique safe prices across every shop category", () => {
+  const keys = PERK_CATALOG.map((perk) => perk.key);
+  assert.equal(PERK_CATALOG.length, 38);
+  assert.equal(new Set(keys).size, keys.length);
+  assert.ok(PERK_CATALOG.every((perk) => perk.price > 0 && Number.isInteger(perk.price)));
+  assert.deepEqual(new Set(PERK_CATALOG.map((perk) => perk.category)), new Set(["title", "frame", "logo", "color", "icon"]));
+  assert.equal(perkByKey("comet-logo")?.category, "logo");
+  assert.equal(perkColor("mint-name"), "#4ade9e");
+  assert.equal(perkByKey("not-a-real-item"), undefined);
 });

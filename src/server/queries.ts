@@ -83,6 +83,9 @@ export type LeaderRow = {
   avatarUrl: string | null;
   equippedTitle: string | null;
   equippedFrame: string | null;
+  equippedLogo: string | null;
+  equippedColor: string | null;
+  equippedIcon: string | null;
   accountabilityActive: boolean;
   streak: number;
   minutes: number;
@@ -99,6 +102,9 @@ const userCols = {
   avatarUrl: users.avatarUrl,
   equippedTitle: users.equippedTitle,
   equippedFrame: users.equippedFrame,
+  equippedLogo: users.equippedLogo,
+  equippedColor: users.equippedColor,
+  equippedIcon: users.equippedIcon,
   accountabilityActive: sql<boolean>`(${users.publicAccountability} and exists (
     select 1 from ${sessionCommitments} sc
     where sc.user_id = ${users.id} and sc.status = 'broken' and sc.accountability_expires_at > now()

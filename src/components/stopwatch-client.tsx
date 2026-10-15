@@ -8,6 +8,7 @@ import {
 import { useTimer } from "@/components/timer-provider";
 import { BadgeIcon } from "@/components/widgets";
 import { ProjectPicker } from "@/components/project-picker";
+import { useLocale } from "@/components/locale-provider";
 
 type TaskLite = { id: number; title: string; priority: string };
 
@@ -34,6 +35,8 @@ export function StopwatchClient({
   recentProjects?: string[];
 }) {
   const timer = useTimer();
+  const { locale, t } = useLocale();
+  const ar = locale === "ar";
   const { swStatus, swElapsedMs, swTaskId, swToggle, swSetTask, swBank, swDiscard, todayMin, lastResult, runStatus, partialMode } = timer;
 
   const [bankToast, setBankToast] = useState<number | null>(null);
@@ -74,11 +77,11 @@ export function StopwatchClient({
   /* tab title */
   useEffect(() => {
     if (swStatus !== "idle") {
-      document.title = `${fmtHMS(swElapsedMs)} Stopwatch · FocusArena`;
-      return () => { document.title = "Stopwatch · FocusArena"; };
+      document.title = `${fmtHMS(swElapsedMs)} ${ar ? "ساعة الإيقاف" : "Stopwatch"} · FocusArena`;
+      return () => { document.title = `${ar ? "ساعة الإيقاف" : "Stopwatch"} · FocusArena`; };
     }
-    document.title = "Stopwatch · FocusArena";
-  }, [swElapsedMs, swStatus]);
+    document.title = `${ar ? "ساعة الإيقاف" : "Stopwatch"} · FocusArena`;
+  }, [swElapsedMs, swStatus, ar]);
 
   const ring = () => {
     // visual progress inside each completed hour
@@ -106,19 +109,19 @@ export function StopwatchClient({
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
           <span className="text-[0.65rem] font-bold uppercase tracking-[0.4em] text-gold-400">
-            {running ? "Tracking" : swStatus === "paused" ? "Paused" : "Stopwatch"}
+            {running ? (ar ? "جارٍ التسجيل" : "Tracking") : swStatus === "paused" ? (ar ? "متوقف مؤقتًا" : "Paused") : (ar ? "ساعة الإيقاف" : "Stopwatch")}
           </span>
           <span className="tnum font-mono text-[3.6rem] font-bold leading-none tracking-tight text-white sm:text-[4.2rem]">
             {fmtHMS(swElapsedMs)}
           </span>
           <span className="mt-1 flex items-center gap-1.5 text-[0.68rem] text-[#8f8cb0]">
             <Zap size={11} className="text-gold-400" />
-            {bankableMin > 0 ? `${bankableMin}m bankable → +${bankableMin} XP` : "full hours glow the ring"}
+            {bankableMin > 0 ? (ar ? `${bankableMin} د قابلة للاحتساب → +${bankableMin} XP` : `${bankableMin}m bankable → +${bankableMin} XP`) : (ar ? "تضيء الحلقة مع مرور الساعات" : "full hours glow the ring")}
           </span>
           {bankToast !== null && (
             <div className="absolute bottom-14 left-1/2 -translate-x-1/2 animate-xp-pop">
               <span className="chip !border-gold-400/50 !bg-gold-400/15 !text-gold-300 !text-sm !font-bold">
-                <PiggyBank size={14} /> +{bankToast} XP banked
+                <PiggyBank size={14} /> +{bankToast} XP {ar ? "أُضيفت" : "banked"}
               </span>
             </div>
           )}
@@ -130,13 +133,12 @@ export function StopwatchClient({
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-xs font-bold uppercase tracking-[0.25em] text-gold-400">Time Logger</p>
+        <p className="text-xs font-bold uppercase tracking-[0.25em] text-gold-400">{ar ? "مسجّل الوقت" : "Time Logger"}</p>
         <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-white sm:text-3xl">
-          Stopwatch <span className="text-gradient">mode</span>
+          {ar ? "وضع ساعة الإيقاف" : <>Stopwatch <span className="text-gradient">mode</span></>}
         </h1>
         <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-[#8f8cb0]">
-          Free-form tracking for long study blocks. Pick a task, start the clock, and{" "}
-          <b className="text-white">bank the time as XP</b> whenever you stop — it also feeds your streak, badges and the leaderboard.
+          {ar ? <>تسجيل حر لفترات الدراسة الطويلة. اختر مهمة وابدأ الساعة ثم <b className="text-white">حوّل وقتك إلى XP</b> عند التوقف — ويُحتسب أيضًا في سلسلتك وشاراتك ولوحة الصدارة.</> : <>Free-form tracking for long study blocks. Pick a task, start the clock, and <b className="text-white">bank the time as XP</b> whenever you stop — it also feeds your streak, badges and the leaderboard.</>}
         </p>
       </div>
 
@@ -150,7 +152,7 @@ export function StopwatchClient({
 
           <div className="relative flex justify-center">
             <span className="chip !border-mint-400/30 !bg-mint-400/8 !text-[0.62rem] !font-semibold !text-mint-400/90">
-              <Zap size={10} /> Keeps counting while you navigate — even if you close the site
+              <Zap size={10} /> {ar ? "يستمر العد أثناء التنقل — حتى عند إغلاق الموقع" : "Keeps counting while you navigate — even if you close the site"}
             </span>
           </div>
 
@@ -160,11 +162,11 @@ export function StopwatchClient({
           {lastResult && (
             <div className="relative mx-auto mt-2 flex max-w-sm flex-wrap items-center justify-center gap-2 animate-fade-up">
               <span className="chip !text-[0.7rem]">
-                <Flame size={12} className="text-gold-400" /> {lastResult.streak} day streak
+                <Flame size={12} className="text-gold-400" /> {lastResult.streak} {ar ? "يوم في السلسلة" : "day streak"}
               </span>
               {lastResult.leveledUp && (
                 <span className="chip !border-neon-400/50 !bg-neon-400/15 !text-neon-300 !text-[0.7rem] !font-bold">
-                  <Trophy size={12} /> LEVEL {lastResult.level} REACHED
+                  <Trophy size={12} /> {t("common.level").toUpperCase()} {lastResult.level}
                 </span>
               )}
             </div>
@@ -176,14 +178,14 @@ export function StopwatchClient({
               onClick={swDiscard}
               disabled={swStatus === "idle"}
               className={`btn btn-ghost !rounded-full !p-3.5 ${partialMode === "yes" ? "hover:!text-mint-400" : "hover:!text-rose-300"}`}
-              title={partialMode === "yes" ? "Stop — tracked minutes are banked automatically" : "Stop and discard tracked time"}
+              title={partialMode === "yes" ? (ar ? "إيقاف — تُحتسب الدقائق المسجلة تلقائيًا" : "Stop — tracked minutes are banked automatically") : (ar ? "إيقاف وإهمال الوقت المسجل" : "Stop and discard tracked time")}
             >
               <Trash2 size={18} />
             </button>
             <button
               onClick={swToggle}
               disabled={blocked}
-              title={blocked ? "Pomodoro is running — finish or pause it first" : undefined}
+              title={blocked ? (ar ? "جلسة بومودورو قيد التشغيل — أنهها أو أوقفها مؤقتًا أولًا" : "Pomodoro is running — finish or pause it first") : undefined}
               className="btn btn-primary !rounded-full !px-11 !py-4 !text-lg !font-bold"
               style={{
                 boxShadow: `0 12px 42px -8px ${A}`,
@@ -192,7 +194,7 @@ export function StopwatchClient({
               }}
             >
               {running ? <Pause size={20} /> : <Play size={20} className="ml-0.5" />}
-              {running ? "Pause" : swStatus === "paused" ? "Resume" : "Start"}
+              {running ? t("focus.pause") : swStatus === "paused" ? t("focus.resume") : t("focus.start")}
             </button>
             <button
               onClick={swBank}
@@ -205,17 +207,17 @@ export function StopwatchClient({
                 cursor: bankableMin >= 1 ? "pointer" : "not-allowed",
                 border: "none",
               }}
-              title={bankableMin >= 1 ? `Bank ${bankableMin} minutes as XP` : "Track at least 1 minute to bank"}
+              title={bankableMin >= 1 ? (ar ? `احتسب ${bankableMin} دقيقة كـ XP` : `Bank ${bankableMin} minutes as XP`) : (ar ? "سجّل دقيقة واحدة على الأقل للاحتساب" : "Track at least 1 minute to bank")}
             >
               <PiggyBank size={18} />
-              Bank{bankableMin >= 1 ? ` +${bankableMin}` : ""}
+              {ar ? "احتساب" : "Bank"}{bankableMin >= 1 ? ` +${bankableMin}` : ""}
             </button>
           </div>
 
           {/* blocked note */}
           {blocked && (
             <p className="relative mt-4 flex items-center justify-center gap-2 text-xs text-gold-400/90">
-              <Info size={13} /> A Pomodoro round is already running — one engine at a time.
+              <Info size={13} /> {ar ? "هناك جولة بومودورو قيد التشغيل — استخدم مؤقتًا واحدًا في كل مرة." : "A Pomodoro round is already running — one engine at a time."}
             </p>
           )}
 
@@ -225,16 +227,16 @@ export function StopwatchClient({
               <div className="flex items-center gap-3 rounded-2xl border border-gold-400/35 bg-gold-400/10 px-4 py-3">
                 <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-gold-400" />
                 <div className="min-w-0 flex-1">
-                  <p className="text-[0.62rem] font-bold uppercase tracking-[0.16em] text-gold-400">Tracking time on</p>
+                  <p className="text-[0.62rem] font-bold uppercase tracking-[0.16em] text-gold-400">{ar ? "الوقت المسجل للمهمة" : "Tracking time on"}</p>
                   <p className="truncate text-sm font-semibold text-white">{activeTask.title}</p>
                 </div>
-                <button onClick={() => swSetTask(null)} className="shrink-0 text-[#6d6a8f] hover:text-white" title="Unlink">
+                <button onClick={() => swSetTask(null)} className="shrink-0 text-[#6d6a8f] hover:text-white" title={ar ? "إلغاء الربط" : "Unlink"}>
                   ×
                 </button>
               </div>
             ) : (
               <p className="text-center text-xs text-[#6d6a8f]">
-                No task linked — pick one on the right, or track free study time.
+                {ar ? "لا توجد مهمة مرتبطة — اختر واحدة أو سجّل وقت دراسة حرًا." : "No task linked — pick one on the right, or track free study time."}
               </p>
             )}
           </div>
@@ -244,13 +246,13 @@ export function StopwatchClient({
         <div className="space-y-5">
           <div className="glass-card p-5">
             <h2 className="mb-3 flex items-center gap-2 text-sm font-bold text-white">
-              <ListChecks size={15} className="text-gold-400" /> What are you working on?
+              <ListChecks size={15} className="text-gold-400" /> {ar ? "على ماذا تعمل؟" : "What are you working on?"}
             </h2>
             {tasks.length === 0 ? (
               <div className="py-5 text-center">
-                <p className="text-sm text-[#8f8cb0]">No open tasks.</p>
+                <p className="text-sm text-[#8f8cb0]">{t("tasks.allClear")}</p>
                 <a href="/tasks" className="mt-2 inline-block text-xs font-semibold text-brand-300 hover:text-brand-200">
-                  Create one first →
+                  {t("tasks.add")} →
                 </a>
               </div>
             ) : (
@@ -284,7 +286,7 @@ export function StopwatchClient({
 
           <div className="glass-card p-5">
             <h2 className="flex items-center gap-2 text-sm font-bold text-white">
-              <Flame size={15} className="text-brand-300" /> Today so far
+              <Flame size={15} className="text-brand-300" /> {ar ? "إنجاز اليوم" : "Today so far"}
             </h2>
             <p className="tnum mt-3 text-3xl font-bold text-white">
               {Math.round(todayMin)}<span className="text-base font-semibold text-[#8f8cb0]">m / {dailyGoal}m</span>
@@ -296,23 +298,23 @@ export function StopwatchClient({
               />
             </div>
             <p className="mt-2.5 text-xs text-[#8f8cb0]">
-              Every banked minute counts here, on your streak and on the board.
+              {ar ? "كل دقيقة محتسبة تُضاف إلى سلسلتك ولوحة الصدارة." : "Every banked minute counts here, on your streak and on the board."}
             </p>
           </div>
 
           <div className="glass-card p-5">
-            <h2 className="text-sm font-bold text-white">How banking works</h2>
+            <h2 className="text-sm font-bold text-white">{ar ? "كيف يعمل احتساب الوقت" : "How banking works"}</h2>
             <ul className="mt-3 space-y-2.5 text-[0.83rem] leading-relaxed text-[#8f8cb0]">
-              <li className="flex gap-2.5"><span className="tnum font-bold text-gold-400">01</span> Press start and go do the work — the clock survives navigation and closed tabs.</li>
-              <li className="flex gap-2.5"><span className="tnum font-bold text-gold-400">02</span> Hit <b className="text-white">Bank</b> to convert tracked minutes into XP (1m = 1 XP) and deep-work minutes on the task.</li>
-              <li className="flex gap-2.5"><span className="tnum font-bold text-gold-400">03</span> Banking fires the loud chime, updates your streak and can unlock badges.</li>
+              <li className="flex gap-2.5"><span className="tnum font-bold text-gold-400">01</span> {ar ? "ابدأ العمل — يستمر المؤقت عند التنقل وحتى بعد إغلاق التبويب." : "Press start and go do the work — the clock survives navigation and closed tabs."}</li>
+              <li className="flex gap-2.5"><span className="tnum font-bold text-gold-400">02</span> {ar ? <>اضغط <b className="text-white">احتساب</b> لتحويل الدقائق إلى XP (كل دقيقة = 1 XP) ووقت عمل عميق للمهمة.</> : <>Hit <b className="text-white">Bank</b> to convert tracked minutes into XP (1m = 1 XP) and deep-work minutes on the task.</>}</li>
+              <li className="flex gap-2.5"><span className="tnum font-bold text-gold-400">03</span> {ar ? "يُصدر الاحتساب نغمة ويحدّث سلسلتك وقد يفتح شارات." : "Banking fires the loud chime, updates your streak and can unlock badges."}</li>
               <li className="flex gap-2.5">
                 <span className="tnum font-bold text-gold-400">04</span>
                 {partialMode === "yes"
-                  ? "Your setting: stopping early still banks the tracked minutes."
+                  ? ar ? "إعدادك: تُحتسب الدقائق المسجلة حتى عند التوقف مبكرًا." : "Your setting: stopping early still banks the tracked minutes."
                   : partialMode === "no"
-                    ? "Your setting: minutes only count when you press Bank."
-                    : "You will be asked how early stops are handled when you start."}
+                    ? ar ? "إعدادك: تُحتسب الدقائق عند ضغط زر الاحتساب فقط." : "Your setting: minutes only count when you press Bank."
+                    : ar ? "سنطلب منك تحديد طريقة احتساب التوقف المبكر عند البدء." : "You will be asked how early stops are handled when you start."}
               </li>
             </ul>
           </div>
@@ -323,7 +325,7 @@ export function StopwatchClient({
       {showBadges && lastResult && lastResult.newBadges.length > 0 && (
         <div className="fixed inset-0 z-[140] flex items-center justify-center bg-ink-950/80 p-4 backdrop-blur-sm" onClick={() => setShowBadges(false)}>
           <div className="glass-card w-full max-w-sm p-8 text-center animate-scale-in" onClick={(e) => e.stopPropagation()}>
-            <p className="text-[0.65rem] font-bold uppercase tracking-[0.35em] text-gold-400">Badge unlocked</p>
+            <p className="text-[0.65rem] font-bold uppercase tracking-[0.35em] text-gold-400">{ar ? "فُتحت شارة جديدة" : "Badge unlocked"}</p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
               {lastResult.newBadges.map((b) => (
                 <div key={b.key} className="flex flex-col items-center gap-2.5">
@@ -336,7 +338,7 @@ export function StopwatchClient({
               ))}
             </div>
             <button onClick={() => setShowBadges(false)} className="btn btn-primary mt-8 w-full !py-3">
-              Keep grinding
+              {ar ? "واصل التقدم" : "Keep grinding"}
             </button>
           </div>
         </div>

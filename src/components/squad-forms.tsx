@@ -3,8 +3,11 @@
 import { useActionState } from "react";
 import { AlertCircle, Users, LogIn, LoaderCircle } from "lucide-react";
 import { createSquadAction, joinSquadAction, type FormState } from "@/server/actions";
+import { useLocale } from "@/components/locale-provider";
 
 export function SquadForms() {
+  const { locale } = useLocale();
+  const ar = locale === "ar";
   const [createState, createAction, createPending] = useActionState<FormState, FormData>(createSquadAction, {});
   const [joinState, joinAction, joinPending] = useActionState<FormState, FormData>(joinSquadAction, {});
 
@@ -12,13 +15,13 @@ export function SquadForms() {
     <div className="grid gap-4 sm:grid-cols-2">
       <form action={createAction} className="glass-card p-5">
         <h2 className="flex items-center gap-2 text-sm font-bold text-white">
-          <Users size={15} className="text-brand-300" /> Create a squad
+          <Users size={15} className="text-brand-300" /> {ar ? "أنشئ فريقًا" : "Create a squad"}
         </h2>
-        <p className="mt-1 text-xs text-[#8f8cb0]">You get an invite code to drop in the group chat.</p>
+        <p className="mt-1 text-xs text-[#8f8cb0]">{ar ? "ستحصل على رمز دعوة لمشاركته مع مجموعتك." : "You get an invite code to drop in the group chat."}</p>
         <div className="mt-4 flex gap-2.5">
           <input name="name" className="input" placeholder="e.g. The Night Shift" maxLength={60} required minLength={3} />
           <button disabled={createPending} className="btn btn-primary shrink-0">
-            {createPending ? <LoaderCircle size={15} className="animate-spin" /> : "Create"}
+            {createPending ? <LoaderCircle size={15} className="animate-spin" /> : ar ? "إنشاء" : "Create"}
           </button>
         </div>
         {createState.error && (
@@ -30,9 +33,9 @@ export function SquadForms() {
 
       <form action={joinAction} className="glass-card p-5">
         <h2 className="flex items-center gap-2 text-sm font-bold text-white">
-          <LogIn size={15} className="text-neon-400" /> Join with a code
+          <LogIn size={15} className="text-neon-400" /> {ar ? "انضم باستخدام رمز" : "Join with a code"}
         </h2>
-        <p className="mt-1 text-xs text-[#8f8cb0]">Got a code from a friend? Paste it here.</p>
+        <p className="mt-1 text-xs text-[#8f8cb0]">{ar ? "هل أرسل لك صديق رمزًا؟ ألصقه هنا." : "Got a code from a friend? Paste it here."}</p>
         <div className="mt-4 flex gap-2.5">
           <input
             name="code"
@@ -42,7 +45,7 @@ export function SquadForms() {
             required
           />
           <button disabled={joinPending} className="btn btn-ghost shrink-0">
-            {joinPending ? <LoaderCircle size={15} className="animate-spin" /> : "Join"}
+            {joinPending ? <LoaderCircle size={15} className="animate-spin" /> : ar ? "انضمام" : "Join"}
           </button>
         </div>
         {joinState.error && (

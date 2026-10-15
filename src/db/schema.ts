@@ -35,6 +35,10 @@ export const users = pgTable(
     xpBalance: integer("xp_balance").notNull().default(0),
     equippedTitle: varchar("equipped_title", { length: 40 }),
     equippedFrame: varchar("equipped_frame", { length: 40 }),
+    equippedLogo: varchar("equipped_logo", { length: 40 }),
+    equippedColor: varchar("equipped_color", { length: 40 }),
+    equippedIcon: varchar("equipped_icon", { length: 40 }),
+    locale: varchar("locale", { length: 5 }).notNull().default("en"),
     publicAccountability: boolean("public_accountability").notNull().default(false),
     streak: integer("streak").notNull().default(0),
     lastFocusDay: varchar("last_focus_day", { length: 10 }),
@@ -167,7 +171,7 @@ export const userPerks = pgTable(
   (t) => [
     primaryKey({ columns: [t.userId, t.rewardKey] }),
     index("user_perks_user_purchased_idx").on(t.userId, t.purchasedAt),
-    check("user_perks_category_chk", sql`${t.category} in ('title', 'frame')`),
+    check("user_perks_category_chk", sql`${t.category} in ('title', 'frame', 'logo', 'color', 'icon')`),
     check("user_perks_cost_chk", sql`${t.xpCost} > 0`),
   ]
 );

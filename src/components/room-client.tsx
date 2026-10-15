@@ -11,6 +11,7 @@ import {
 import { startRoomAction, endRoomAction, leaveRoomAction, deleteRoomAction } from "@/server/actions";
 import { Avatar, AdminChip } from "@/components/widgets";
 import { fmtClock } from "@/lib/dates";
+import { useLocale } from "@/components/locale-provider";
 
 type RoomState = {
   serverNow: string;
@@ -54,6 +55,8 @@ export function RoomClient({
   iAmAdmin: boolean;
 }) {
   const router = useRouter();
+  const { locale } = useLocale();
+  const ar = locale === "ar";
   const [state, setState] = useState<RoomState | null>(null);
   const [secLeft, setSecLeft] = useState<number | null>(null);
   const [clockNow, setClockNow] = useState(0);
@@ -84,19 +87,19 @@ export function RoomClient({
       if (prev && prev !== cur) {
         if (prev === "focus" && cur === "break") {
           playChime("focus-done");
-          showToast(`Round banked — +${data.room.focusMinutes} XP for everyone in the room!`);
+          showToast(ar ? `احتُسبت الجولة — +${data.room.focusMinutes} XP لكل الموجودين في الغرفة!` : `Round banked — +${data.room.focusMinutes} XP for everyone in the room!`);
         } else if (prev === "break" && cur === "focus") {
           playChime("break-done");
-          showToast(`Round ${data.room.currentRound} started — lock in.`);
+          showToast(ar ? `بدأت الجولة ${data.room.currentRound} — ركّز الآن.` : `Round ${data.room.currentRound} started — lock in.`);
         } else if (prev === "focus" && cur === "done") {
           playChime("focus-done");
-          showToast("Session complete — GG everyone!");
+          showToast(ar ? "اكتملت الجلسة — أحسنتم جميعًا!" : "Session complete — GG everyone!");
         }
       }
       prevStatusRef.current = cur;
       setState(data);
     } catch { /* network blip — retry next tick */ }
-  }, [code, showToast]);
+  }, [code, showToast, ar]);
 
   useEffect(() => {
     const firstPoll = window.setTimeout(() => void poll(), 0);
@@ -130,12 +133,12 @@ export function RoomClient({
   /* tab title */
   useEffect(() => {
     if (room && live && secLeft !== null) {
-      document.title = `${fmtClock(secLeft)} ${room.status === "focus" ? "Focus" : "Break"} · ${room.name}`;
+      document.title = `${fmtClock(secLeft)} ${room.status === "focus" ? (ar ? "تركيز" : "Focus") : (ar ? "استراحة" : "Break")} · ${room.name}`;
     } else if (room) {
-      document.title = `${room.name} · Focus Room`;
+      document.title = `${room.name} · ${ar ? "غرفة تركيز" : "Focus Room"}`;
     }
-    return () => { document.title = "Focus Room · FocusArena"; };
-  }, [secLeft, room, live]);
+    return () => { document.title = `${ar ? "غرفة تركيز" : "Focus Room"} · FocusArena`; };
+  }, [secLeft, room, live, ar]);
 
   const accent = room?.status === "focus" ? "#7c6cff" : room?.status === "break" ? "#34d399" : "#8f8cb0";
   const phaseTotal = room ? (room.status === "focus" ? room.focusMinutes : room.breakMinutes) * 60 : 0;
@@ -162,7 +165,7 @@ export function RoomClient({
   return (
     <div className="space-y-5">
       <Link href="/rooms" className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#8f8cb0] transition hover:text-white">
-        <ArrowLeft size={14} /> All rooms
+        <ArrowLeft size={14} /> {ar ? "كل الغرف" : "All rooms"}
       </Link>
 
       {/* Header */}
@@ -171,24 +174,24 @@ export function RoomClient({
         <div className="relative flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="flex items-center gap-2.5 text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              {room?.name ?? "Loading room..."}
+              {room?.name ?? (ar ? "جارٍ تحميل الغرفة…" : "Loading room...")}
               {live && <Radio size={20} className="animate-pulse" style={{ color: accent }} />}
             </h1>
             <p className="mt-1.5 text-sm text-[#8f8cb0]">
               {room
-                ? `${room.totalRounds} rounds · ${room.focusMinutes}m focus / ${room.breakMinutes}m break · hosted by ${members.find((m) => m.isHost)?.displayName ?? "—"}`
-                : "Syncing with the room..."}
+                ? ar ? `${room.totalRounds} جولات · ${room.focusMinutes} د تركيز / ${room.breakMinutes} د استراحة · بإدارة ${members.find((m) => m.isHost)?.displayName ?? "—"}` : `${room.totalRounds} rounds · ${room.focusMinutes}m focus / ${room.breakMinutes}m break · hosted by ${members.find((m) => m.isHost)?.displayName ?? "—"}`
+                : ar ? "جارٍ المزامنة مع الغرفة…" : "Syncing with the room..."}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="chip font-mono !px-3.5 !py-2 !text-sm !font-bold tracking-[0.3em] text-brand-300">{code}</span>
             <button onClick={copyLink} className="btn btn-ghost !px-3.5 !py-2 text-xs">
               {linkCopied ? <Check size={14} className="text-mint-400" /> : <Link2 size={14} />}
-              {linkCopied ? "Link copied!" : "Copy invite link"}
+              {linkCopied ? (ar ? "تم نسخ الرابط!" : "Link copied!") : (ar ? "نسخ رابط الدعوة" : "Copy invite link")}
             </button>
             {!isHostMe && (
               <button onClick={leaveRoom} disabled={pending} className="btn btn-ghost !px-3.5 !py-2 text-xs hover:!text-rose-300">
-                <LogOut size={14} /> Leave
+                <LogOut size={14} /> {ar ? "مغادرة" : "Leave"}
               </button>
             )}
             {(isHostMe || iAmAdmin) && (
@@ -196,9 +199,9 @@ export function RoomClient({
                 onClick={() => setConfirmDelete(true)}
                 disabled={pending}
                 className="btn btn-ghost !border-rose-500/30 !px-3.5 !py-2 text-xs !text-rose-300 hover:!bg-rose-500/10"
-                title="Delete this room permanently"
+                title={ar ? "حذف هذه الغرفة نهائيًا" : "Delete this room permanently"}
               >
-                <Trash2 size={14} /> Delete room
+                <Trash2 size={14} /> {ar ? "حذف الغرفة" : "Delete room"}
               </button>
             )}
           </div>
@@ -210,7 +213,7 @@ export function RoomClient({
         )}
         {!isHostMe && !iAmAdmin && (
           <p className="relative mt-4 text-[0.68rem] text-[#5c5a78]">
-            Only the room creator can delete this room.
+            {ar ? "يمكن لمنشئ الغرفة فقط حذفها." : "Only the room creator can delete this room."}
           </p>
         )}
       </div>
@@ -230,20 +233,19 @@ export function RoomClient({
                 <UsersRound size={36} />
               </span>
               <div>
-                <h2 className="text-2xl font-bold text-white">The lobby is filling up</h2>
+                <h2 className="text-2xl font-bold text-white">{ar ? "الردهة تستقبل الأعضاء" : "The lobby is filling up"}</h2>
                 <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-[#8f8cb0]">
-                  Share the code or link. When the crew is in, the host starts the clock —
-                  <b className="text-white"> and everyone focuses on the exact same timer.</b>
+                  {ar ? <>شارك الرمز أو الرابط. عندما ينضم الفريق يبدأ المضيف المؤقت — <b className="text-white">ويركز الجميع على الساعة نفسها.</b></> : <>Share the code or link. When the crew is in, the host starts the clock — <b className="text-white"> and everyone focuses on the exact same timer.</b></>}
                 </p>
               </div>
-              <p className="tnum text-sm text-[#6d6a8f]">{members.length} in the room</p>
+              <p className="tnum text-sm text-[#6d6a8f]">{members.length} {ar ? "في الغرفة" : "in the room"}</p>
               {isHostMe ? (
                 <button onClick={startRoom} disabled={pending} className="btn btn-primary !px-10 !py-4 !text-base">
                   {pending ? <LoaderCircle size={18} className="animate-spin" /> : <Play size={18} />}
-                  Start round 1
+                  {ar ? "ابدأ الجولة 1" : "Start round 1"}
                 </button>
               ) : (
-                <p className="chip !py-2 text-xs">Waiting for the host to start...</p>
+                <p className="chip !py-2 text-xs">{ar ? "بانتظار بدء المضيف…" : "Waiting for the host to start..."}</p>
               )}
             </div>
           )}
@@ -269,7 +271,7 @@ export function RoomClient({
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
                   <span className="text-[0.65rem] font-bold uppercase tracking-[0.4em]" style={{ color: accent }}>
-                    {room.status === "focus" ? `Focus · Round ${room.currentRound}/${room.totalRounds}` : "Break"}
+                    {room.status === "focus" ? (ar ? `تركيز · جولة ${room.currentRound}/${room.totalRounds}` : `Focus · Round ${room.currentRound}/${room.totalRounds}`) : (ar ? "استراحة" : "Break")}
                   </span>
                   <span className="tnum font-mono text-[4.4rem] font-bold leading-none tracking-tight text-white">
                     {secLeft !== null ? fmtClock(secLeft) : "--:--"}
@@ -287,14 +289,14 @@ export function RoomClient({
                     ))}
                   </div>
                   <span className="mt-1 flex items-center gap-1.5 text-[0.68rem] text-[#8f8cb0]">
-                    <UsersRound size={11} /> {members.length} synchronized
+                    <UsersRound size={11} /> {members.length} {ar ? "متزامن" : "synchronized"}
                   </span>
                 </div>
               </div>
               {(isHostMe || iAmAdmin) && (
                 <div className="relative mt-6 flex justify-center">
                   <button onClick={endRoom} disabled={pending} className="btn btn-ghost !px-5 !py-2.5 text-xs hover:!text-rose-300">
-                    <Square size={13} /> End session for everyone
+                    <Square size={13} /> {ar ? "إنهاء الجلسة للجميع" : "End session for everyone"}
                   </button>
                 </div>
               )}
@@ -308,15 +310,14 @@ export function RoomClient({
                 <PartyPopper size={36} />
               </span>
               <div>
-                <h2 className="text-2xl font-bold text-white">Session complete. GG.</h2>
+                <h2 className="text-2xl font-bold text-white">{ar ? "اكتملت الجلسة — أحسنتم!" : "Session complete. GG."}</h2>
                 <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-[#8f8cb0]">
-                  {room.totalRounds} rounds in the books, together. Your XP, streak and badges are already banked —
-                  check the board to see who else showed up.
+                  {ar ? `${room.totalRounds} جولات أنجزتموها معًا. أُضيف XP وسلسلتك وشاراتك بالفعل — تفقّد لوحة الصدارة.` : `${room.totalRounds} rounds in the books, together. Your XP, streak and badges are already banked — check the board to see who else showed up.`}
                 </p>
               </div>
               <div className="flex flex-wrap justify-center gap-3">
-                <Link href="/leaderboard" className="btn btn-primary">Check the leaderboard</Link>
-                <Link href="/rooms" className="btn btn-ghost">Back to rooms</Link>
+                <Link href="/leaderboard" className="btn btn-primary">{ar ? "لوحة الصدارة" : "Check the leaderboard"}</Link>
+                <Link href="/rooms" className="btn btn-ghost">{ar ? "العودة إلى الغرف" : "Back to rooms"}</Link>
               </div>
             </div>
           )}
@@ -326,11 +327,11 @@ export function RoomClient({
         <div className="space-y-5">
           <div className="glass-card p-5">
             <h2 className="mb-3 flex items-center gap-2 text-sm font-bold text-white">
-              <UsersRound size={15} className="text-brand-300" /> In the room
+              <UsersRound size={15} className="text-brand-300" /> {ar ? "في الغرفة" : "In the room"}
               <span className="tnum text-xs font-semibold text-[#8f8cb0]">{members.length}</span>
             </h2>
             {members.length === 0 ? (
-              <p className="py-4 text-center text-xs text-[#6d6a8f]">Syncing members...</p>
+              <p className="py-4 text-center text-xs text-[#6d6a8f]">{ar ? "جارٍ مزامنة الأعضاء…" : "Syncing members..."}</p>
             ) : (
               <ul className="max-h-96 space-y-2 overflow-y-auto pr-1">
                 {members.map((m) => {
@@ -343,13 +344,13 @@ export function RoomClient({
                           className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-ink-900 ${
                             present ? "bg-mint-400" : "bg-[#4a4866]"
                           }`}
-                          title={present ? "In the room now" : "Away"}
+                          title={present ? (ar ? "موجود الآن" : "In the room now") : (ar ? "غير متصل" : "Away")}
                         />
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-white">
                           {m.displayName}
-                          {m.id === meId && <span className="text-[0.65rem] text-brand-300">(you)</span>}
+                          {m.id === meId && <span className="text-[0.65rem] text-brand-300">{ar ? "(أنت)" : "(you)"}</span>}
                           {m.isHost && <Crown size={12} className="shrink-0 text-gold-400" />}
                           {m.role === "admin" && <AdminChip small />}
                         </p>
@@ -370,11 +371,11 @@ export function RoomClient({
           </div>
 
           <div className="glass-card p-5">
-            <h2 className="text-sm font-bold text-white">How rooms work</h2>
+            <h2 className="text-sm font-bold text-white">{ar ? "كيف تعمل الغرف" : "How rooms work"}</h2>
             <ul className="mt-3 space-y-2.5 text-[0.83rem] leading-relaxed text-[#8f8cb0]">
-              <li className="flex gap-2.5"><Zap size={14} className="mt-0.5 shrink-0 text-brand-300" /> When a focus round ends, everyone present banks the same XP.</li>
-              <li className="flex gap-2.5"><Radio size={14} className="mt-0.5 shrink-0 text-neon-400" /> The clock is server-synced — same second for the whole crew.</li>
-              <li className="flex gap-2.5"><CheckCircle2 size={14} className="mt-0.5 shrink-0 text-mint-400" /> Group rounds count toward the Stronger Together and Hive Mind badges.</li>
+              <li className="flex gap-2.5"><Zap size={14} className="mt-0.5 shrink-0 text-brand-300" /> {ar ? "عند انتهاء جولة التركيز يحصل كل الموجودين على XP نفسه." : "When a focus round ends, everyone present banks the same XP."}</li>
+              <li className="flex gap-2.5"><Radio size={14} className="mt-0.5 shrink-0 text-neon-400" /> {ar ? "المؤقت متزامن مع الخادم — الجميع على الثانية نفسها." : "The clock is server-synced — same second for the whole crew."}</li>
+              <li className="flex gap-2.5"><CheckCircle2 size={14} className="mt-0.5 shrink-0 text-mint-400" /> {ar ? "تُسهم الجولات الجماعية في فتح شارات العمل الجماعي." : "Group rounds count toward the Stronger Together and Hive Mind badges."}</li>
             </ul>
           </div>
         </div>
@@ -387,14 +388,13 @@ export function RoomClient({
             <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-500/15 text-rose-300">
               <AlertTriangle size={22} />
             </span>
-            <h2 className="mt-4 text-lg font-bold text-white">Delete this room?</h2>
+            <h2 className="mt-4 text-lg font-bold text-white">{ar ? "هل تريد حذف هذه الغرفة؟" : "Delete this room?"}</h2>
             <p className="mt-2 text-sm leading-relaxed text-[#8f8cb0]">
-              The room and its invite code disappear for everyone. XP and badges that members already
-              banked stay safe on their profiles.
+              {ar ? "ستختفي الغرفة ورمز دعوتها عن الجميع. يبقى XP والشارات التي اكتسبها الأعضاء محفوظة في ملفاتهم." : "The room and its invite code disappear for everyone. XP and badges that members already banked stay safe on their profiles."}
             </p>
             <div className="mt-6 flex gap-2.5">
               <button onClick={() => setConfirmDelete(false)} className="btn btn-ghost flex-1 !py-2.5 text-sm">
-                Keep it
+                {ar ? "الاحتفاظ بها" : "Keep it"}
               </button>
               <button
                 onClick={deleteRoom}
@@ -403,7 +403,7 @@ export function RoomClient({
                 style={{ background: "linear-gradient(135deg,#f43f5e,#be123c)", color: "#fff", border: "none" }}
               >
                 {pending ? <LoaderCircle size={15} className="animate-spin" /> : <Trash2 size={15} />}
-                Delete
+                {ar ? "حذف" : "Delete"}
               </button>
             </div>
           </div>

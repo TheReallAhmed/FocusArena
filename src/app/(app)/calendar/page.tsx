@@ -5,7 +5,8 @@ import { ChevronLeft, ChevronRight, Flame, CalendarCheck, TrendingUp, Sigma, Moo
 import { getSessionUser } from "@/lib/auth";
 import { getCalendarData } from "@/server/queries";
 import { getCalendarInsights } from "@/server/insights";
-import { parseMonthParam, shiftMonth, monthLabel, dayKey, fmtMinutes } from "@/lib/dates";
+import { parseMonthParam, shiftMonth, dayKey, fmtMinutes } from "@/lib/dates";
+import { normalizeLocale } from "@/lib/i18n";
 
 export const metadata: Metadata = { title: "Calendar" };
 export const dynamic = "force-dynamic";
@@ -27,6 +28,7 @@ export default async function CalendarPage({
 }) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  const ar = normalizeLocale(user.locale) === "ar";
 
   const params = await searchParams;
   const { year, month } = parseMonthParam(params.m);
@@ -35,10 +37,8 @@ export default async function CalendarPage({
     getCalendarInsights(user),
   ]);
 
-  const fmtHour = (h: number) => {
-    const label = h === 0 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`;
-    return label;
-  };
+  const fmtHour = (h: number) => new Intl.DateTimeFormat(ar ? "ar" : "en", { hour: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(2026, 0, 1, h)));
+  const displayMonth = new Intl.DateTimeFormat(ar ? "ar" : "en", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(year, month - 1, 1)));
   const maxWeekday = Math.max(1, ...insights.weekdayAvg.map((w) => w.avg));
   const maxWeek = Math.max(1, ...insights.weeklyTotals.map((w) => w.minutes));
 
@@ -70,17 +70,17 @@ export default async function CalendarPage({
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.25em] text-brand-300">Consistency Map</p>
+          <p className="text-xs font-bold uppercase tracking-[0.25em] text-brand-300">{ar ? "خريطة الاستمرارية" : "Consistency Map"}</p>
           <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-white sm:text-3xl">
-            Focus <span className="text-gradient">heatmap</span>
+            {ar ? "تقويم التركيز" : <>Focus <span className="text-gradient">heatmap</span></>}
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          <Link href={`/calendar?m=${prev.y}-${String(prev.m).padStart(2, "0")}`} className="btn btn-ghost !rounded-full !p-2.5" title="Previous month">
+          <Link href={`/calendar?m=${prev.y}-${String(prev.m).padStart(2, "0")}`} className="btn btn-ghost !rounded-full !p-2.5" title={ar ? "الشهر السابق" : "Previous month"}>
             <ChevronLeft size={17} />
           </Link>
-          <span className="min-w-36 text-center text-sm font-bold text-white">{monthLabel(year, month)}</span>
-          <Link href={`/calendar?m=${next.y}-${String(next.m).padStart(2, "0")}`} className="btn btn-ghost !rounded-full !p-2.5" title="Next month">
+          <span className="min-w-36 text-center text-sm font-bold text-white">{displayMonth}</span>
+          <Link href={`/calendar?m=${next.y}-${String(next.m).padStart(2, "0")}`} className="btn btn-ghost !rounded-full !p-2.5" title={ar ? "الشهر التالي" : "Next month"}>
             <ChevronRight size={17} />
           </Link>
         </div>
@@ -89,10 +89,10 @@ export default async function CalendarPage({
       {/* Month stats */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {[
-          { icon: Sigma, label: "Total", value: fmtMinutes(data.monthTotal), hue: 255 },
-          { icon: CalendarCheck, label: "Active days", value: String(data.activeDays), hue: 160 },
-          { icon: TrendingUp, label: "Best day", value: data.bestDay ? fmtMinutes(data.bestDay.minutes) : "—", hue: 190 },
-          { icon: Flame, label: "Streak", value: `${user.streak}d`, hue: 35 },
+          { icon: Sigma, label: ar ? "الإجمالي" : "Total", value: fmtMinutes(data.monthTotal), hue: 255 },
+          { icon: CalendarCheck, label: ar ? "أيام نشطة" : "Active days", value: String(data.activeDays), hue: 160 },
+          { icon: TrendingUp, label: ar ? "أفضل يوم" : "Best day", value: data.bestDay ? fmtMinutes(data.bestDay.minutes) : "—", hue: 190 },
+          { icon: Flame, label: ar ? "السلسلة" : "Streak", value: `${user.streak}${ar ? " ي" : "d"}`, hue: 35 },
         ].map((s) => (
           <div key={s.label} className="glass-card flex items-center gap-3.5 p-4">
             <span
@@ -112,7 +112,7 @@ export default async function CalendarPage({
       {/* Grid */}
       <div className="glass-card p-5 sm:p-6">
         <div className="mb-2 grid grid-cols-7 gap-1.5 sm:gap-2">
-          {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
+          {(ar ? ["إثن", "ثلا", "أرب", "خمي", "جمع", "سبت", "أحد"] : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]).map((d) => (
             <div key={d} className="pb-1 text-center text-[0.65rem] font-bold uppercase tracking-widest text-[#5c5a78]">
               {d}
             </div>
@@ -129,7 +129,7 @@ export default async function CalendarPage({
             return (
               <div
                 key={cell.key}
-                title={`${cell.key} — ${minutes > 0 ? `${fmtMinutes(minutes)} · ${info?.sessions} session${(info?.sessions ?? 0) > 1 ? "s" : ""}` : "no focus"}`}
+                title={`${cell.key} — ${minutes > 0 ? `${fmtMinutes(minutes)} · ${info?.sessions} ${ar ? "جلسة" : `session${(info?.sessions ?? 0) > 1 ? "s" : ""}`}` : ar ? "لا يوجد تركيز" : "no focus"}`}
                 className={`relative flex aspect-square items-center justify-center rounded-lg border text-xs font-semibold transition-transform hover:scale-105 sm:rounded-xl ${CELL[level]} ${
                   isToday ? "border-white/50" : "border-white/[0.05]"
                 } ${inStreak ? "shadow-[0_0_16px_-2px_rgba(251,191,36,0.5)]" : ""}`}
@@ -145,25 +145,25 @@ export default async function CalendarPage({
 
         {/* Legend */}
         <div className="mt-5 flex items-center justify-end gap-2 text-[0.65rem] font-medium text-[#6d6a8f]">
-          Less
+          {ar ? "أقل" : "Less"}
           {CELL.map((c, i) => (
             <span key={i} className={`h-3 w-3 rounded ${c} border border-white/[0.06]`} />
           ))}
-          More
-          <span className="ml-3 flex items-center gap-1"><Flame size={10} className="text-gold-400" /> streak day</span>
+          {ar ? "أكثر" : "More"}
+          <span className="ms-3 flex items-center gap-1"><Flame size={10} className="text-gold-400" /> {ar ? "يوم في السلسلة" : "streak day"}</span>
         </div>
       </div>
 
       {/* ── Insights ── */}
       <div>
         <h2 className="mb-4 flex items-center gap-2 text-base font-bold text-white">
-          <BarChart3 size={17} className="text-neon-400" /> Deep work insights
+          <BarChart3 size={17} className="text-neon-400" /> {ar ? "تحليلات العمل العميق" : "Deep work insights"}
         </h2>
         <div className="grid gap-4 lg:grid-cols-3">
           {/* Weekday rhythm */}
           <div className="glass-card p-5">
-            <h3 className="text-sm font-bold text-white">Your weekly rhythm</h3>
-            <p className="mt-0.5 text-[0.68rem] text-[#6d6a8f]">Average focus minutes per weekday · last 8 weeks</p>
+            <h3 className="text-sm font-bold text-white">{ar ? "إيقاعك الأسبوعي" : "Your weekly rhythm"}</h3>
+            <p className="mt-0.5 text-[0.68rem] text-[#6d6a8f]">{ar ? "متوسط دقائق التركيز لكل يوم · آخر 8 أسابيع" : "Average focus minutes per weekday · last 8 weeks"}</p>
             <div className="mt-4 flex h-28 items-end gap-2">
               {insights.weekdayAvg.map((w) => (
                 <div key={w.label} className="group flex h-full flex-1 flex-col items-center justify-end gap-1.5">
@@ -172,7 +172,7 @@ export default async function CalendarPage({
                     className="w-full rounded-t-md bg-gradient-to-t from-[#23234a] to-brand-500/70 transition-all group-hover:to-brand-500"
                     style={{ height: `${Math.max(4, (w.avg / maxWeekday) * 100)}%` }}
                   />
-                  <span className="text-[0.6rem] font-bold text-[#6d6a8f]">{w.label.slice(0, 2)}</span>
+                  <span className="text-[0.6rem] font-bold text-[#6d6a8f]">{ar ? ({ Mon: "إثن", Tue: "ثلا", Wed: "أرب", Thu: "خمي", Fri: "جمع", Sat: "سبت", Sun: "أحد" } as Record<string, string>)[w.label] ?? w.label : w.label.slice(0, 2)}</span>
                 </div>
               ))}
             </div>
@@ -180,37 +180,37 @@ export default async function CalendarPage({
 
           {/* Peak stats */}
           <div className="glass-card flex flex-col gap-4 p-5">
-            <h3 className="text-sm font-bold text-white">Prime time</h3>
+            <h3 className="text-sm font-bold text-white">{ar ? "أفضل أوقاتك" : "Prime time"}</h3>
             <div className="grid flex-1 grid-cols-2 gap-3">
               <div className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-line bg-white/[0.02] p-3 text-center">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gold-400/12 text-gold-400">
                   {insights.bestHour !== null && insights.bestHour >= 18 || insights.bestHour !== null && insights.bestHour < 5 ? <Moon size={15} /> : <Sun size={15} />}
                 </span>
                 <p className="tnum text-sm font-bold text-white">{insights.bestHour !== null ? fmtHour(insights.bestHour) : "—"}</p>
-                <p className="text-[0.6rem] font-semibold uppercase tracking-wider text-[#6d6a8f]">Best hour</p>
+                <p className="text-[0.6rem] font-semibold uppercase tracking-wider text-[#6d6a8f]">{ar ? "أفضل ساعة" : "Best hour"}</p>
               </div>
               <div className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-line bg-white/[0.02] p-3 text-center">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500/14 text-brand-300"><Zap size={15} /></span>
                 <p className="tnum text-sm font-bold text-white">{insights.longestSession ? fmtMinutes(insights.longestSession) : "—"}</p>
-                <p className="text-[0.6rem] font-semibold uppercase tracking-wider text-[#6d6a8f]">Longest round</p>
+                <p className="text-[0.6rem] font-semibold uppercase tracking-wider text-[#6d6a8f]">{ar ? "أطول جولة" : "Longest round"}</p>
               </div>
               <div className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-line bg-white/[0.02] p-3 text-center">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-mint-400/12 text-mint-400"><TrendingUp size={15} /></span>
                 <p className="tnum text-sm font-bold text-white">{insights.avgPerActiveDay ? fmtMinutes(insights.avgPerActiveDay) : "—"}</p>
-                <p className="text-[0.6rem] font-semibold uppercase tracking-wider text-[#6d6a8f]">Avg / active day</p>
+                <p className="text-[0.6rem] font-semibold uppercase tracking-wider text-[#6d6a8f]">{ar ? "المتوسط / يوم نشط" : "Avg / active day"}</p>
               </div>
               <div className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-line bg-white/[0.02] p-3 text-center">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-neon-500/12 text-neon-300"><CalendarCheck size={15} /></span>
                 <p className="tnum text-sm font-bold text-white">{insights.activeDays}</p>
-                <p className="text-[0.6rem] font-semibold uppercase tracking-wider text-[#6d6a8f]">Active days · 8w</p>
+                <p className="text-[0.6rem] font-semibold uppercase tracking-wider text-[#6d6a8f]">{ar ? "أيام نشطة · 8 أسابيع" : "Active days · 8w"}</p>
               </div>
             </div>
           </div>
 
           {/* 6-week trend */}
           <div className="glass-card p-5">
-            <h3 className="text-sm font-bold text-white">Momentum</h3>
-            <p className="mt-0.5 text-[0.68rem] text-[#6d6a8f]">Total minutes per week · last 6 weeks</p>
+            <h3 className="text-sm font-bold text-white">{ar ? "الزخم" : "Momentum"}</h3>
+            <p className="mt-0.5 text-[0.68rem] text-[#6d6a8f]">{ar ? "إجمالي الدقائق أسبوعيًا · آخر 6 أسابيع" : "Total minutes per week · last 6 weeks"}</p>
             <div className="mt-4 flex h-28 items-end gap-2.5">
               {insights.weeklyTotals.map((w, i) => (
                 <div key={i} className="group flex h-full flex-1 flex-col items-center justify-end gap-1.5">

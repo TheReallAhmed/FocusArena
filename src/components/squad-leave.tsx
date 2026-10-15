@@ -4,9 +4,12 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { DoorOpen } from "lucide-react";
 import { leaveSquadAction } from "@/server/actions";
+import { useLocale } from "@/components/locale-provider";
 
 export function LeaveSquadButton({ squadId }: { squadId: number }) {
   const router = useRouter();
+  const { locale } = useLocale();
+  const ar = locale === "ar";
   const [pending, start] = useTransition();
   return (
     <button
@@ -19,10 +22,10 @@ export function LeaveSquadButton({ squadId }: { squadId: number }) {
         });
       }}
       className="btn btn-ghost !px-3.5 !py-2 text-xs hover:!text-rose-300"
-      title="Leave squad"
+      title={ar ? "مغادرة الفريق" : "Leave squad"}
     >
       <DoorOpen size={14} />
-      {pending ? "Leaving..." : "Leave"}
+      {pending ? (ar ? "جارٍ المغادرة…" : "Leaving...") : (ar ? "مغادرة" : "Leave")}
     </button>
   );
 }

@@ -7,7 +7,8 @@ import {
   LoaderCircle, MapPin, Save, Trash2, UserRound,
 } from "lucide-react";
 import { updateProfileAction, type ProfileState } from "@/server/actions";
-import { Avatar, PerkTitleBadge } from "@/components/widgets";
+import { Avatar, PerkTitleBadge, StyledDisplayName } from "@/components/widgets";
+import { useLocale } from "@/components/locale-provider";
 import type { User } from "@/db/schema";
 
 const MAX_SOURCE_BYTES = 10 * 1024 * 1024;
@@ -56,6 +57,7 @@ function Field({
 }
 
 export function ProfileEditor({ user }: { user: User }) {
+  const { t } = useLocale();
   const [state, action, pending] = useActionState<ProfileState, FormData>(updateProfileAction, {});
   const [avatar, setAvatar] = useState<string | null>(user.avatarUrl);
   const [avatarMode, setAvatarMode] = useState<"keep" | "replace" | "remove">("keep");
@@ -98,7 +100,7 @@ export function ProfileEditor({ user }: { user: User }) {
           style={{ background: `hsl(${user.avatarHue} 85% 55% / 0.2)` }}
         />
         <div className="relative flex flex-col items-center text-center">
-          <p className="text-[0.65rem] font-bold uppercase tracking-[0.25em] text-brand-300">Profile picture</p>
+          <p className="text-[0.65rem] font-bold uppercase tracking-[0.25em] text-brand-300">{t("profile.photo")}</p>
           <div className="relative mt-6">
             <Avatar name={user.displayName} hue={user.avatarHue} imageUrl={avatar} size={150} ring frameKey={user.equippedFrame} />
             <button
@@ -119,22 +121,22 @@ export function ProfileEditor({ user }: { user: User }) {
             onChange={(e) => void chooseFile(e.target.files?.[0])}
           />
 
-          <h2 className="mt-5 text-lg font-bold text-white">{user.displayName}</h2>
+          <h2 className="mt-5 text-lg font-bold text-white"><StyledDisplayName name={user.displayName} colorKey={user.equippedColor} iconKey={user.equippedIcon} logoKey={user.equippedLogo} /></h2>
           <div className="mt-1"><PerkTitleBadge rewardKey={user.equippedTitle} /></div>
           <p className="text-xs text-[#6d6a8f]">@{user.username}</p>
 
           <div className="mt-5 flex flex-wrap justify-center gap-2.5">
             <button type="button" onClick={() => fileRef.current?.click()} disabled={processing} className="btn btn-primary !px-4 !py-2 text-xs">
-              <ImagePlus size={14} /> {avatar ? "Change photo" : "Upload photo"}
+              <ImagePlus size={14} /> {avatar ? t("profile.changePhoto") : t("profile.uploadPhoto")}
             </button>
             {avatar && (
               <button type="button" onClick={removeAvatar} className="btn btn-ghost !px-4 !py-2 text-xs hover:!text-rose-300">
-                <Trash2 size={14} /> Remove
+                <Trash2 size={14} /> {t("profile.remove")}
               </button>
             )}
           </div>
           <p className="mt-4 max-w-xs text-[0.68rem] leading-relaxed text-[#6d6a8f]">
-            JPG, PNG or WebP up to 10 MB. We automatically center-crop and compress it to a fast 320×320 WebP.
+            {t("profile.photoHint")}
           </p>
           {imageError && (
             <p className="mt-3 flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2.5 text-left text-xs text-rose-300">
@@ -148,25 +150,25 @@ export function ProfileEditor({ user }: { user: User }) {
       <div className="glass-card p-6">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-base font-bold text-white">Public identity</h2>
-            <p className="mt-1 text-xs text-[#8f8cb0]">Everything here appears on your public FocusArena profile.</p>
+            <h2 className="text-base font-bold text-white">{t("profile.public")}</h2>
+            <p className="mt-1 text-xs text-[#8f8cb0]">{t("profile.profileHint")}</p>
           </div>
           <Link href={`/u/${user.username}`} className="btn btn-ghost !px-3.5 !py-2 text-xs">
-            View profile
+            {t("profile.view")}
           </Link>
         </div>
 
         <div className="mt-6 space-y-5">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Display name" icon={UserRound}>
+            <Field label={t("profile.name")} icon={UserRound}>
               <input name="displayName" className="input" defaultValue={user.displayName} required minLength={2} maxLength={40} />
             </Field>
-            <Field label="Location" icon={MapPin} hint="City, country or “Remote” — optional">
+            <Field label={t("profile.location")} icon={MapPin} hint={t("profile.locationHint")}>
               <input name="location" className="input" defaultValue={user.location ?? ""} placeholder="Amman, Jordan" maxLength={80} />
             </Field>
           </div>
 
-          <Field label="About you" icon={UserRound} hint={`${bio.length}/280 characters`}>
+          <Field label={t("profile.about")} icon={UserRound} hint={`${bio.length}/280`}>
             <textarea
               name="bio"
               className="input min-h-28 resize-y leading-relaxed"
@@ -178,8 +180,8 @@ export function ProfileEditor({ user }: { user: User }) {
           </Field>
 
           <div className="border-t border-line pt-5">
-            <h3 className="text-sm font-bold text-white">Links</h3>
-            <p className="mt-1 text-xs text-[#6d6a8f]">Build your identity beyond the leaderboard.</p>
+            <h3 className="text-sm font-bold text-white">{t("profile.links")}</h3>
+            <p className="mt-1 text-xs text-[#6d6a8f]">{t("profile.linksHint")}</p>
             <div className="mt-4 space-y-4">
               <Field label="LinkedIn" icon={BriefcaseBusiness}>
                 <input name="linkedInUrl" className="input" defaultValue={user.linkedInUrl ?? ""} placeholder="linkedin.com/in/your-name" inputMode="url" />
@@ -206,10 +208,10 @@ export function ProfileEditor({ user }: { user: User }) {
         )}
 
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
-          <p className="text-[0.68rem] text-[#5c5a78]">Username @{user.username} is permanent to keep profile links stable.</p>
+          <p className="text-[0.68rem] text-[#5c5a78]">{t("profile.username")} @{user.username}</p>
           <button type="submit" disabled={pending || processing} className="btn btn-primary !px-6 !py-3">
             {pending ? <LoaderCircle size={16} className="animate-spin" /> : <Save size={16} />}
-            {pending ? "Saving profile..." : "Save changes"}
+            {pending ? t("common.working") : t("profile.save")}
           </button>
         </div>
       </div>

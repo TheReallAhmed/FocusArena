@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { getProfile } from "@/server/queries";
-import { Avatar, AdminChip, LevelChip, BadgeIcon, PerkTitleBadge } from "@/components/widgets";
+import { Avatar, AdminChip, LevelChip, BadgeIcon, PerkTitleBadge, StyledDisplayName } from "@/components/widgets";
 import { ContributionGrid } from "@/components/contribution-grid";
 import { BADGES, levelProgress, TIER_META, sortByRarity, badgeScore, badgeProgress } from "@/lib/xp";
 import { BadgeChip } from "@/components/badge-rail";
@@ -55,7 +55,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
           </span>
           <div className="min-w-0 flex-1">
             <h1 className="flex flex-wrap items-center gap-2.5 text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              {user.displayName}
+              <StyledDisplayName name={user.displayName} colorKey={user.equippedColor} iconKey={user.equippedIcon} logoKey={user.equippedLogo} />
               {user.role === "admin" && <AdminChip />}
               <PerkTitleBadge rewardKey={user.equippedTitle} />
               {isMe && <span className="chip !text-[0.65rem] text-brand-300">this is you</span>}

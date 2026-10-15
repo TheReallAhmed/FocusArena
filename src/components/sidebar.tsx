@@ -4,13 +4,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Timer, ListChecks, CalendarDays, Trophy, Users, BookOpen, Brain, Swords,
-  UsersRound, ShieldCheck, UserRoundCog, Watch, ScrollText,
+  UsersRound, ShieldCheck, UserRoundCog, Watch, ScrollText, ShoppingBag, Settings,
 } from "lucide-react";
 import { Logo } from "@/components/brand";
-import { Avatar, LevelChip, AdminChip } from "@/components/widgets";
+import { Avatar, LevelChip, AdminChip, CosmeticMark } from "@/components/widgets";
 import { LogoutButton } from "@/components/client-utils";
 import type { User } from "@/db/schema";
 import { levelFromXp } from "@/lib/xp";
+import { useLocale } from "@/components/locale-provider";
+import { perkColor } from "@/lib/perks";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -25,11 +27,14 @@ const NAV = [
   { href: "/history", label: "History", icon: ScrollText },
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
   { href: "/squads", label: "Squads", icon: Users },
+  { href: "/shop", label: "XP Shop", icon: ShoppingBag },
   { href: "/settings/profile", label: "Edit profile", icon: UserRoundCog },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function Sidebar({ user }: { user: User }) {
   const pathname = usePathname();
+  const { locale, t } = useLocale();
   const level = levelFromXp(user.xp);
   const isAdmin = user.role === "admin";
 
@@ -48,24 +53,24 @@ export function Sidebar({ user }: { user: User }) {
           }`}
         >
           <item.icon size={13} />
-          {item.label}
+          {t(`nav.${item.href === "/dashboard" ? "dashboard" : item.href === "/settings/profile" ? "profile" : item.href === "/shop" ? "shop" : item.href === "/settings" ? "settings" : item.href.slice(1)}`)}
         </Link>
       );
     }
     return (
       <Link key={item.href} href={item.href} className={`nav-link ${isActive(item.href) ? "nav-link-active" : ""}`}>
         <item.icon size={17} strokeWidth={2.1} />
-        {item.label}
+        {t(`nav.${item.href === "/dashboard" ? "dashboard" : item.href === "/settings/profile" ? "profile" : item.href === "/shop" ? "shop" : item.href === "/settings" ? "settings" : item.href.slice(1)}`)}
       </Link>
     );
   };
 
-  const adminItem = { href: "/admin", label: "Admin", icon: ShieldCheck };
+  const adminItem = { href: "/admin", label: t("nav.admin"), icon: ShieldCheck };
 
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-line bg-ink-900/85 backdrop-blur-xl lg:flex">
+      <aside className={`fixed inset-y-0 ${locale === "ar" ? "right-0 border-l" : "left-0 border-r"} z-40 hidden w-60 flex-col border-line bg-ink-900/85 backdrop-blur-xl lg:flex`}>
         <div className="px-5 py-6">
           <Link href="/"><Logo size={32} /></Link>
         </div>
@@ -77,7 +82,7 @@ export function Sidebar({ user }: { user: User }) {
               className={`nav-link !text-gold-400/90 hover:!text-gold-400 ${isActive("/admin") ? "!border-gold-400/40 !bg-gold-400/10" : ""}`}
             >
               <ShieldCheck size={17} strokeWidth={2.1} />
-              Admin
+              {t("nav.admin")}
             </Link>
           )}
         </nav>
@@ -88,8 +93,10 @@ export function Sidebar({ user }: { user: User }) {
           >
             <Avatar name={user.displayName} hue={user.avatarHue} imageUrl={user.avatarUrl} frameKey={user.equippedFrame} size={34} />
             <div className="min-w-0 flex-1">
-              <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-white">
+              <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-white" style={{ color: perkColor(user.equippedColor) }}>
                 {user.displayName}
+                <CosmeticMark rewardKey={user.equippedIcon} size={12}/>
+                <CosmeticMark rewardKey={user.equippedLogo} size={12}/>
               </p>
               <div className="mt-0.5 flex items-center gap-1.5">
                 {isAdmin ? <AdminChip small /> : <LevelChip level={level} small />}

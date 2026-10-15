@@ -17,16 +17,17 @@ import { LiveRefresh } from "@/components/live-refresh";
 import { BadgeRail } from "@/components/badge-rail";
 import { BADGES, levelProgress } from "@/lib/xp";
 import { fmtMinutes, dayLabel, timeAgo } from "@/lib/dates";
+import { normalizeLocale, t } from "@/lib/i18n";
 
 export const metadata: Metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";
 
-function greeting() {
+function greeting(locale: "en" | "ar") {
   const h = new Date().getUTCHours();
-  if (h < 5) return "Grinding past midnight";
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
-  return "Good evening";
+  if (h < 5) return t(locale, "dashboard.greeting.night");
+  if (h < 12) return t(locale, "dashboard.greeting.morning");
+  if (h < 17) return t(locale, "dashboard.greeting.afternoon");
+  return t(locale, "dashboard.greeting.evening");
 }
 
 function pulseLine(item: PulseItem) {
@@ -52,6 +53,8 @@ function PULSE_ICON(kind: PulseItem["kind"]) {
 export default async function DashboardPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  const locale = normalizeLocale(user.locale);
+  const text = (key: string) => t(locale, key);
 
   const [data, quote, pulse, top3, insights] = await Promise.all([
     getDashboardData(user),
@@ -72,15 +75,15 @@ export default async function DashboardPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.25em] text-brand-300">
-            {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" })}
+            {new Date().toLocaleDateString(locale === "ar" ? "ar" : "en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" })}
           </p>
           <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-white sm:text-3xl">
-            {greeting()}, <span className="text-gradient">{user.displayName}</span>
+            {greeting(locale)}, <span className="text-gradient">{user.displayName}</span>
             {user.role === "admin" && <span className="ml-2 align-middle"><AdminChip /></span>}
           </h1>
         </div>
         <Link href="/focus" className="btn btn-primary">
-          <Zap size={16} /> Start a sprint
+          <Zap size={16} /> {text("dashboard.start")}
         </Link>
       </div>
 
@@ -94,17 +97,17 @@ export default async function DashboardPage() {
             </span>
             <div>
               <p className="tnum text-2xl font-bold text-white">
-                {user.streak} day{user.streak === 1 ? "" : "s"}
+                {user.streak} {locale === "ar" ? text(user.streak === 1 ? "common.day" : "common.days") : user.streak === 1 ? "day" : "days"}
               </p>
               <p className="text-xs font-medium text-[#8f8cb0]">
-                {user.streak > 0 ? "Current focus streak — keep it alive" : "Finish one session today to ignite your streak"}
+                {user.streak > 0 ? text("dashboard.streak") : text("dashboard.streakEmpty")}
               </p>
             </div>
           </div>
           <div className="min-w-52 flex-1 sm:max-w-xs">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-bold text-brand-300">Level {prog.level}</span>
-              <span className="tnum text-[#8f8cb0]">{prog.nextIn} XP to level {prog.level + 1}</span>
+              <span className="font-bold text-brand-300">{text("common.level")} {prog.level}</span>
+              <span className="tnum text-[#8f8cb0]">{prog.nextIn} XP {locale === "ar" ? "للمستوى" : "to level"} {prog.level + 1}</span>
             </div>
             <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white/8">
               <div
@@ -118,26 +121,26 @@ export default async function DashboardPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard icon={Clock3} label="Today" value={fmtMinutes(data.todayMinutes)} sub="focused so far" hue={255} />
-        <StatCard icon={CalendarRange} label="This week" value={fmtMinutes(data.weekTotal)} sub="Monday → today" hue={190} />
-        <StatCard icon={Sigma} label="All time" value={fmtMinutes(user.xp)} sub={`${data.totalSessions} sessions total`} hue={150} />
-        <StatCard icon={Zap} label="Total XP" value={String(user.xp)} sub={`Level ${prog.level} · ${data.earnedBadges.length}/${BADGES.length} badges`} hue={45} />
+        <StatCard icon={Clock3} label={text("dashboard.today")} value={fmtMinutes(data.todayMinutes)} sub={text("dashboard.focused")} hue={255} />
+        <StatCard icon={CalendarRange} label={text("dashboard.thisWeek")} value={fmtMinutes(data.weekTotal)} sub={locale === "ar" ? "من الاثنين إلى اليوم" : "Monday → today"} hue={190} />
+        <StatCard icon={Sigma} label={text("dashboard.allTime")} value={fmtMinutes(user.xp)} sub={`${data.totalSessions} ${text("dashboard.sessions")}`} hue={150} />
+        <StatCard icon={Zap} label={text("dashboard.totalXp")} value={String(user.xp)} sub={`${text("common.level")} ${prog.level} · ${data.earnedBadges.length}/${BADGES.length} ${locale === "ar" ? "شارة" : "badges"}`} hue={45} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <section className="glass-card p-5" aria-label="Commitment outcomes">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-bold text-white">Commitment follow-through</h2>
-            <span className="chip !text-[0.62rem]">Private</span>
+            <h2 className="text-sm font-bold text-white">{text("dashboard.commitment")}</h2>
+            <span className="chip !text-[0.62rem]">{text("dashboard.private")}</span>
           </div>
           <p className="tnum mt-3 text-2xl font-black text-white">{insights.commitments.percentage === null ? "—" : `${insights.commitments.percentage}%`}</p>
-          <p className="mt-1 text-xs text-[#8f8cb0]">{insights.commitments.fulfilled} fulfilled out of {insights.commitments.resolved} resolved commitments</p>
+          <p className="mt-1 text-xs text-[#8f8cb0]">{insights.commitments.fulfilled} {text("dashboard.fulfilled")} {locale === "ar" ? "من أصل" : "out of"} {insights.commitments.resolved} {text("dashboard.resolved")}</p>
           <p className="mt-1 text-[0.68rem] text-[#6d6a8f]">{insights.commitments.broken} self-reported not fulfilled · {insights.commitments.unresolved} unresolved</p>
-          <Link href="/history" className="mt-3 inline-flex text-xs font-semibold text-brand-300 hover:text-brand-200">Review your history →</Link>
+          <Link href="/history" className="mt-3 inline-flex text-xs font-semibold text-brand-300 hover:text-brand-200">{text("dashboard.history")}</Link>
         </section>
 
         <section className="glass-card p-5" aria-label="Energy and focus duration">
-          <h2 className="text-sm font-bold text-white">Energy & focus outcomes</h2>
+          <h2 className="text-sm font-bold text-white">{text("dashboard.energy")}</h2>
           <p className="mt-1 text-[0.65rem] text-[#6d6a8f]">By energy: completed-round duration, logged quality and ended-round completion rate.</p>
           <div className="mt-4 space-y-2">
             {insights.energy.byEnergy.map((bucket) => {
@@ -160,7 +163,7 @@ export default async function DashboardPage() {
         </section>
 
         <section className="glass-card p-5" aria-label="Verification and XP balance">
-          <h2 className="text-sm font-bold text-white">Accountability tools</h2>
+          <h2 className="text-sm font-bold text-white">{text("dashboard.accountability")}</h2>
           <div className="mt-3 grid grid-cols-3 gap-2 text-center">
             <div className="rounded-xl border border-line bg-white/[0.02] p-2"><p className="tnum text-lg font-bold text-mint-300">{insights.verification.verified}</p><p className="text-[0.58rem] text-[#6d6a8f]">verified</p></div>
             <div className="rounded-xl border border-line bg-white/[0.02] p-2"><p className="tnum text-lg font-bold text-gold-300">{insights.verification.partial}</p><p className="text-[0.58rem] text-[#6d6a8f]">partial</p></div>
@@ -168,7 +171,7 @@ export default async function DashboardPage() {
           </div>
           <p className="mt-3 text-[0.68rem] text-[#6d6a8f]">Attention prompts are optional and do not prove continuous focus.</p>
           <div className="mt-3 flex items-center justify-between border-t border-line pt-3"><span className="text-xs text-[#8f8cb0]">Spendable XP</span><span className="tnum text-sm font-bold text-gold-300">{user.xpBalance.toLocaleString()}</span></div>
-          <Link href="/settings/profile" className="mt-2 inline-flex text-xs font-semibold text-brand-300 hover:text-brand-200">Visit the XP perks store →</Link>
+          <Link href="/shop" className="mt-2 inline-flex text-xs font-semibold text-brand-300 hover:text-brand-200">{text("dashboard.shop")} →</Link>
         </section>
       </div>
 
@@ -177,7 +180,7 @@ export default async function DashboardPage() {
         <div className="glass-card p-5 xl:col-span-3">
           <div className="mb-4 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5">
-              <h2 className="text-sm font-bold text-white">Last 7 days</h2>
+              <h2 className="text-sm font-bold text-white">{text("dashboard.last7")}</h2>
               {(delta.pct !== 0 || data.weekTotal > 0) && (
                 <span className={`chip !py-0.5 !text-[0.65rem] !font-bold ${delta.pct >= 0 ? "text-mint-400" : "text-rose-300"}`}>
                   {delta.pct >= 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
@@ -186,7 +189,7 @@ export default async function DashboardPage() {
               )}
             </div>
             <Link href="/calendar" className="text-xs font-semibold text-brand-300 hover:text-brand-200">
-              Full calendar →
+              {text("dashboard.calendar")} →
             </Link>
           </div>
           <WeekChart data={week} />
@@ -196,13 +199,13 @@ export default async function DashboardPage() {
           <div>
             <div className="flex items-center gap-2 text-brand-300">
               <Quote size={15} />
-              <span className="text-xs font-bold uppercase tracking-[0.18em]">Fuel for today</span>
+              <span className="text-xs font-bold uppercase tracking-[0.18em]">{text("dashboard.fuel")}</span>
             </div>
             <p className="mt-3 text-[0.95rem] leading-relaxed text-[#d9d7ec]">&ldquo;{quote.text}&rdquo;</p>
             <p className="mt-2 text-xs font-medium text-[#6d6a8f]">— {quote.author}</p>
           </div>
           <Link href="/focus" className="btn btn-ghost w-full !py-2.5 text-sm">
-            Put it to work <ArrowRight size={15} />
+            {text("dashboard.useIt")} <ArrowRight size={15} />
           </Link>
         </div>
       </div>
@@ -223,15 +226,15 @@ export default async function DashboardPage() {
         <div className="glass-card p-5 sm:col-span-2 xl:col-span-2">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-sm font-bold text-white">
-              <Radio size={15} className="text-neon-400" /> Arena pulse
-              <LiveRefresh intervalMs={20000} label="Live" />
+              <Radio size={15} className="text-neon-400" /> {text("dashboard.pulse")}
+              <LiveRefresh intervalMs={20000} label={text("dashboard.live")} />
             </h2>
-            <Link href="/leaderboard" className="text-xs font-semibold text-brand-300 hover:text-brand-200">Board →</Link>
+            <Link href="/leaderboard" className="text-xs font-semibold text-brand-300 hover:text-brand-200">{text("dashboard.board")} →</Link>
           </div>
           <ul className="max-h-56 space-y-1.5 overflow-y-auto pr-1">
             {pulse.length === 0 && (
               <li className="py-6 text-center text-xs text-[#6d6a8f]">
-                The arena is quiet — your next session starts the pulse.
+                {text("dashboard.quiet")}
               </li>
             )}
             {pulse.map((item, i) => {

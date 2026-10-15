@@ -7,6 +7,7 @@ import { getMySquads } from "@/server/queries";
 import { EmptyState } from "@/components/widgets";
 import { SquadForms } from "@/components/squad-forms";
 import { fmtMinutes } from "@/lib/dates";
+import { normalizeLocale } from "@/lib/i18n";
 
 export const metadata: Metadata = { title: "Squads" };
 export const dynamic = "force-dynamic";
@@ -14,18 +15,19 @@ export const dynamic = "force-dynamic";
 export default async function SquadsPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  const ar = normalizeLocale(user.locale) === "ar";
 
   const squads = await getMySquads(user);
 
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-xs font-bold uppercase tracking-[0.25em] text-brand-300">Your Crew</p>
+        <p className="text-xs font-bold uppercase tracking-[0.25em] text-brand-300">{ar ? "فريقك" : "Your Crew"}</p>
         <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-white sm:text-3xl">
-          Squad <span className="text-gradient">HQ</span>
+          {ar ? "مقر الفريق" : <>Squad <span className="text-gradient">HQ</span></>}
         </h1>
         <p className="mt-1.5 text-sm text-[#8f8cb0]">
-          Private boards for you and your friends. Create a squad, share the code, battle weekly.
+          {ar ? "لوحات خاصة لك ولأصدقائك. أنشئ فريقًا وشارك رمزه وتنافسوا أسبوعيًا." : "Private boards for you and your friends. Create a squad, share the code, battle weekly."}
         </p>
       </div>
 
@@ -35,8 +37,8 @@ export default async function SquadsPage() {
         <div className="glass-card">
           <EmptyState
             icon={Users}
-            title="No squads yet"
-            hint="Create one above and send the invite code to your friends."
+            title={ar ? "لا توجد فرق بعد" : "No squads yet"}
+            hint={ar ? "أنشئ فريقًا وأرسل رمز الدعوة إلى أصدقائك." : "Create one above and send the invite code to your friends."}
           />
         </div>
       ) : (
@@ -55,9 +57,9 @@ export default async function SquadsPage() {
               </div>
               <div className="mt-4 flex items-center gap-4 text-xs text-[#8f8cb0]">
                 <span className="flex items-center gap-1.5">
-                  <Users size={13} /> {s.memberCount} member{s.memberCount === 1 ? "" : "s"}
+                  <Users size={13} /> {s.memberCount} {ar ? "عضو" : `member${s.memberCount === 1 ? "" : "s"}`}
                 </span>
-                <span className="tnum font-semibold text-brand-300">{fmtMinutes(s.weekMinutes)} this week</span>
+                <span className="tnum font-semibold text-brand-300">{fmtMinutes(s.weekMinutes)} {ar ? "هذا الأسبوع" : "this week"}</span>
               </div>
             </Link>
           ))}

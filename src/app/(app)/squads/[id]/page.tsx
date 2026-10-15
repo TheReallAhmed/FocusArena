@@ -10,6 +10,7 @@ import { LiveRefresh } from "@/components/live-refresh";
 import { LeaveSquadButton } from "@/components/squad-leave";
 import { levelFromXp } from "@/lib/xp";
 import { fmtMinutes } from "@/lib/dates";
+import { normalizeLocale } from "@/lib/i18n";
 
 export const metadata: Metadata = { title: "Squad" };
 export const dynamic = "force-dynamic";
@@ -23,6 +24,7 @@ export default async function SquadDetailPage({
 }) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  const ar = normalizeLocale(user.locale) === "ar";
 
   const [{ id }, flags] = await Promise.all([params, searchParams]);
   const detail = await getSquadDetail(user, Number(id));
@@ -33,7 +35,7 @@ export default async function SquadDetailPage({
   return (
     <div className="space-y-5">
       <Link href="/squads" className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#8f8cb0] transition hover:text-white">
-        <ArrowLeft size={14} /> All squads
+        <ArrowLeft size={14} /> {ar ? "كل الفرق" : "All squads"}
       </Link>
 
       <div className="glass-card relative overflow-hidden p-6">
@@ -45,7 +47,7 @@ export default async function SquadDetailPage({
               {isOwner && <Crown size={20} className="text-gold-400" />}
             </h1>
             <p className="mt-1.5 flex items-center gap-2 text-sm text-[#8f8cb0]">
-              <Users size={14} /> {members.length} member{members.length === 1 ? "" : "s"} · weekly board resets Monday
+              <Users size={14} /> {members.length} {ar ? "عضو" : `member${members.length === 1 ? "" : "s"}`} · {ar ? "تُصفّر لوحة الأسبوع كل اثنين" : "weekly board resets Monday"}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2.5">
@@ -59,8 +61,8 @@ export default async function SquadDetailPage({
         {(flags.created || flags.joined) && (
           <p className="relative mt-4 rounded-xl border border-mint-400/30 bg-mint-400/10 px-4 py-2.5 text-xs font-semibold text-mint-400 animate-fade-up">
             {flags.created
-              ? "Squad created — send the code above to your friends so they can join."
-              : "You joined the squad. Start a sprint and take the top spot."}
+              ? ar ? "أُنشئ الفريق — أرسل الرمز أعلاه لأصدقائك لينضموا." : "Squad created — send the code above to your friends so they can join."
+              : ar ? "انضممت إلى الفريق. ابدأ جولة واعمل للوصول إلى الصدارة." : "You joined the squad. Start a sprint and take the top spot."}
           </p>
         )}
       </div>
@@ -68,10 +70,10 @@ export default async function SquadDetailPage({
       <div className="glass-card divide-y divide-line overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5">
           <h2 className="flex items-center gap-2 text-sm font-bold text-white">
-            <Medal size={15} className="text-gold-400" /> This week
-            <LiveRefresh intervalMs={20000} label="Live" />
+            <Medal size={15} className="text-gold-400" /> {ar ? "هذا الأسبوع" : "This week"}
+            <LiveRefresh intervalMs={20000} label={ar ? "مباشر" : "Live"} />
           </h2>
-          <span className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-[#6d6a8f]">Focus minutes</span>
+          <span className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-[#6d6a8f]">{ar ? "دقائق التركيز" : "Focus minutes"}</span>
         </div>
         {members.map((m, i) => (
           <div key={m.id} className={`flex items-center gap-3.5 px-5 py-4 ${m.id === user.id ? "bg-brand-500/8" : ""}`}>
@@ -87,7 +89,7 @@ export default async function SquadDetailPage({
               <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-white">
                 {m.displayName}
                 {m.role === "admin" && <AdminChip small />}
-                {m.id === user.id && <span className="text-xs font-bold text-brand-300">(you)</span>}
+                {m.id === user.id && <span className="text-xs font-bold text-brand-300">{ar ? "(أنت)" : "(you)"}</span>}
                 {m.id === squad.createdBy && <Crown size={12} className="inline text-gold-400" />}
               </p>
               <p className="text-[0.68rem] text-[#6d6a8f]">@{m.username}</p>
