@@ -1,9 +1,10 @@
-import { and, eq, count, sum, isNotNull, sql } from "drizzle-orm";
+import { and, eq, count, sum, isNotNull, sql, lt, gt, ne, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  users, tasks, focusSessions, squads, squadMembers, userBadges, rooms, type User,
+  users, tasks, focusSessions, focusSessionRuns, distractionEvents, squads, squadMembers, userBadges, rooms, type User,
 } from "@/db/schema";
 import { BADGES, levelFromXp, type BadgeStats } from "@/lib/xp";
+import { calculateFocusQuality } from "@/lib/feature-metrics";
 import { dayKey, addDays } from "@/lib/dates";
 
 export type EarnedBadge = {
@@ -142,6 +143,7 @@ export async function evaluateBadges(userId: number, stats: BadgeStats): Promise
 }
 
 export type CreditResult = {
+  gained: number;
   xp: number;
   level: number;
   leveledUp: boolean;
@@ -161,13 +163,13 @@ export async function creditFocusSession(
     roomId?: number | null;
     project?: string | null;
     note?: string | null;
+    runKey?: string | null;
     at?: Date;
   }
 ): Promise<CreditResult> {
   const minutes = Math.max(1, Math.min(600, Math.round(input.minutes)));
   const now = input.at ?? new Date();
   const day = dayKey(now);
-  const prevLevel = levelFromXp(user.xp);
 
   let taskId: number | null = null;
   if (input.taskId) {
@@ -182,31 +184,92 @@ export async function creditFocusSession(
   const project = input.project ? input.project.trim().slice(0, 40) || null : null;
   const note = input.note ? input.note.trim().slice(0, 200) || null : null;
 
-  await db.insert(focusSessions).values({
-    userId: user.id,
-    taskId,
-    roomId: input.roomId ?? null,
-    project,
-    note,
-    minutes,
-    day,
-    startedAt: now,
+  const outcome = await db.transaction(async (tx) => {
+    // Serialize a user's awards and lock the run to make retries/concurrent callbacks safe.
+    const currentRows = await tx.select().from(users).where(eq(users.id, user.id)).for("update").limit(1);
+    const current = currentRows[0] ?? user;
+    let creditedMinutes = minutes;
+    let validRunKey: string | null = null;
+    let quality: number | null = null;
+    let focusStartedAt = now;
+
+    if (input.runKey) {
+      const prior = await tx.select({ id: focusSessions.id })
+        .from(focusSessions).where(eq(focusSessions.runKey, input.runKey)).limit(1);
+      if (prior.length > 0) {
+        return { duplicate: true as const, gained: 0, xp: current.xp, streak: current.streak, leveledUp: false };
+      }
+
+      const runs = await tx.select().from(focusSessionRuns)
+        .where(and(eq(focusSessionRuns.runKey, input.runKey), eq(focusSessionRuns.userId, user.id)))
+        .for("update").limit(1);
+      const run = runs[0];
+      if (!run || run.status !== "active") throw new Error("The focus run is not available for completion.");
+      const overlaps = await tx.select({ runKey: focusSessionRuns.runKey }).from(focusSessionRuns).where(and(
+        eq(focusSessionRuns.userId, user.id),
+        ne(focusSessionRuns.runKey, run.runKey),
+        or(
+          and(eq(focusSessionRuns.status, "active"), or(
+            lt(focusSessionRuns.startedAt, run.startedAt),
+            and(eq(focusSessionRuns.startedAt, run.startedAt), lt(focusSessionRuns.runKey, run.runKey)),
+          )),
+          and(eq(focusSessionRuns.status, "completed"), lt(focusSessionRuns.startedAt, now), isNotNull(focusSessionRuns.endedAt), gt(focusSessionRuns.endedAt, run.startedAt)),
+        ),
+      )).limit(1);
+      if (overlaps.length) throw new Error("Overlapping focus runs cannot count as qualifying rounds.");
+      const requiredMs = run.plannedMinutes * 60_000;
+      if (now.getTime() - run.startedAt.getTime() + 15_000 < requiredMs) {
+        throw new Error("The focus round has not run for its planned duration.");
+      }
+      const [eventCount] = await tx.select({ value: count() }).from(distractionEvents)
+        .where(and(eq(distractionEvents.runKey, input.runKey), eq(distractionEvents.userId, user.id)));
+      quality = calculateFocusQuality(eventCount.value);
+      validRunKey = input.runKey;
+      focusStartedAt = run.startedAt;
+      creditedMinutes = run.plannedMinutes;
+    }
+
+    const inserted = await tx.insert(focusSessions).values({
+      userId: user.id,
+      taskId,
+      roomId: input.roomId ?? null,
+      project,
+      note,
+      minutes: creditedMinutes,
+      day,
+      runKey: validRunKey,
+      focusQuality: quality,
+      focusQualityVersion: validRunKey ? 1 : null,
+      startedAt: focusStartedAt,
+      completedAt: now,
+    }).onConflictDoNothing({ target: focusSessions.runKey }).returning({ id: focusSessions.id });
+    if (inserted.length === 0) {
+      return { duplicate: true as const, gained: 0, xp: current.xp, streak: current.streak, leveledUp: false };
+    }
+
+    const previousLevel = levelFromXp(current.xp);
+    const yesterday = addDays(day, -1);
+    const streak = current.lastFocusDay === day ? current.streak : current.lastFocusDay === yesterday ? current.streak + 1 : 1;
+    const xp = current.xp + creditedMinutes;
+    await tx.update(users).set({ xp, streak, lastFocusDay: day }).where(eq(users.id, user.id));
+
+    if (taskId) {
+      const rows = await tx.select({ focusMinutes: tasks.focusMinutes }).from(tasks).where(eq(tasks.id, taskId)).limit(1);
+      await tx.update(tasks).set({ focusMinutes: (rows[0]?.focusMinutes ?? 0) + creditedMinutes }).where(eq(tasks.id, taskId));
+    }
+    if (validRunKey) {
+      await tx.update(focusSessionRuns).set({ status: "completed", focusSessionId: inserted[0].id, endedAt: now })
+        .where(and(eq(focusSessionRuns.runKey, validRunKey), eq(focusSessionRuns.userId, user.id)));
+    }
+    return { duplicate: false as const, gained: creditedMinutes, xp, streak, leveledUp: levelFromXp(xp) > previousLevel };
   });
 
-  const yesterday = addDays(day, -1);
-  const streak = user.lastFocusDay === day ? user.streak : user.lastFocusDay === yesterday ? user.streak + 1 : 1;
-  const xp = user.xp + minutes;
-
-  await db.update(users).set({ xp, streak, lastFocusDay: day }).where(eq(users.id, user.id));
-
-  if (taskId) {
-    const t = await db.select({ focusMinutes: tasks.focusMinutes }).from(tasks).where(eq(tasks.id, taskId)).limit(1);
-    await db.update(tasks).set({ focusMinutes: (t[0]?.focusMinutes ?? 0) + minutes }).where(eq(tasks.id, taskId));
+  if (outcome.duplicate) {
+    return { gained: outcome.gained, xp: outcome.xp, level: levelFromXp(outcome.xp), leveledUp: false, streak: outcome.streak, newBadges: [] };
   }
 
-  const freshUser = { id: user.id, xp, streak, dailyGoal: user.dailyGoal };
+  const freshUser = { id: user.id, xp: outcome.xp, streak: outcome.streak, dailyGoal: user.dailyGoal };
   const stats = await collectBadgeStats(freshUser, { dayOfWeek: now.getUTCDay(), hour: now.getUTCHours() });
   const newBadges = await evaluateBadges(user.id, stats);
-
-  return { xp, level: levelFromXp(xp), leveledUp: levelFromXp(xp) > prevLevel, streak, newBadges };
+  return { gained: outcome.gained, xp: outcome.xp, level: levelFromXp(outcome.xp), leveledUp: outcome.leveledUp, streak: outcome.streak, newBadges };
 }

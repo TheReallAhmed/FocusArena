@@ -7,6 +7,7 @@ import {
 import { usePathname } from "next/navigation";
 import { Pause, Play, Timer, Watch, Zap, X, ChevronRight, HelpCircle, Check, Ban } from "lucide-react";
 import { completeFocusSession, type FocusResult } from "@/server/actions";
+import { abandonFocusRunAction, beginFocusRunAction } from "@/server/distractions";
 import { playChime, unlockAudio } from "@/lib/sound";
 import { fmtClock } from "@/lib/dates";
 
@@ -27,6 +28,7 @@ type PomodoroState = {
   remainingMs: number | null; // when paused
   cycles: number;
   taskId: number | null;
+  runKey: string | null;
 };
 
 type StopwatchState = {
@@ -66,6 +68,7 @@ type TimerContextValue = {
   msLeft: number;
   cycles: number;
   taskId: number | null;
+  runKey: string | null;
   todayMin: number;
   lastResult: FocusResult | null;
   dismissResult: () => void;
@@ -116,7 +119,7 @@ function defaultState(day: string): StoredState {
   return {
     v: 1,
     day,
-    pomodoro: { mode: "focus", status: "idle", endAt: null, remainingMs: null, cycles: 0, taskId: null },
+    pomodoro: { mode: "focus", status: "idle", endAt: null, remainingMs: null, cycles: 0, taskId: null, runKey: null },
     stopwatch: { status: "idle", startedAt: null, accumulatedMs: 0, taskId: null },
     durations: DEFAULT_DURATIONS,
     autoStart: false,
@@ -216,12 +219,13 @@ export function TimerProvider({ children }: { children: ReactNode }) {
 
   /* --------------------------- CREDIT ENGINE --------------------------- */
 
-  const credit = useCallback(async (minutes: number, taskId: number | null, kind: "focus" | "bank") => {
+  const credit = useCallback(async (minutes: number, taskId: number | null, kind: "focus" | "bank", runKey: string | null = null) => {
     try {
       const res = await completeFocusSession({
         minutes, taskId,
         project: stRef.current?.project ?? null,
         note: stRef.current?.note ?? null,
+        runKey,
       });
       setLastResult(res);
       const cur = stRef.current;
@@ -264,7 +268,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     if (resolvingEndAtRef.current === resolvingEndAt) return;
     resolvingEndAtRef.current = resolvingEndAt;
 
-    let { mode, cycles, taskId } = cur.pomodoro;
+    let { mode, cycles, taskId, runKey } = cur.pomodoro;
     let endAt = cur.pomodoro.endAt;
     const now = Date.now();
     let guard = 0;
@@ -282,15 +286,16 @@ export function TimerProvider({ children }: { children: ReactNode }) {
           }
         } catch { claimed = true; }
         if (claimed) {
-          await credit(cur.durations.focus, taskId, "focus");
+          await credit(cur.durations.focus, taskId, "focus", runKey);
         }
         cycles = done;
+        runKey = null;
         const next: Mode = done % 4 === 0 ? "long" : "short";
         if (!cur.autoStart && endAt + durationMs(next, cur.durations) > now) {
           // stop and wait for the user on the break
           persist({
             ...stRef.current!,
-            pomodoro: { mode: next, status: "paused", endAt: null, remainingMs: durationMs(next, cur.durations), cycles, taskId },
+            pomodoro: { mode: next, status: "paused", endAt: null, remainingMs: durationMs(next, cur.durations), cycles, taskId, runKey: null },
           });
           resolvingEndAtRef.current = null;
           return;
@@ -301,21 +306,25 @@ export function TimerProvider({ children }: { children: ReactNode }) {
         if (!cur.autoStart && endAt + durationMs("focus", cur.durations) > now) {
           persist({
             ...stRef.current!,
-            pomodoro: { mode: "focus", status: "paused", endAt: null, remainingMs: durationMs("focus", cur.durations), cycles, taskId },
+            pomodoro: { mode: "focus", status: "paused", endAt: null, remainingMs: durationMs("focus", cur.durations), cycles, taskId, runKey: null },
           });
           resolvingEndAtRef.current = null;
           return;
         }
         mode = "focus";
-        endAt += durationMs("focus", cur.durations);
+        runKey = crypto.randomUUID();
+        void beginFocusRunAction(runKey, cur.durations.focus).catch(() => undefined);
+        // A missed break starts a fresh full server-timed round; don't backdate credit.
+        endAt = Date.now() + durationMs("focus", cur.durations);
       }
     }
 
     if (endAt <= now) {
       // absurdly long absence — just park the timer, nothing is lost
+      if (runKey) void abandonFocusRunAction(runKey).catch(() => undefined);
       persist({
         ...stRef.current!,
-        pomodoro: { mode: "focus", status: "paused", endAt: null, remainingMs: durationMs("focus", cur.durations), cycles, taskId },
+        pomodoro: { mode: "focus", status: "paused", endAt: null, remainingMs: durationMs("focus", cur.durations), cycles, taskId, runKey: null },
       });
       resolvingEndAtRef.current = null;
       return;
@@ -323,7 +332,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
 
     persist({
       ...stRef.current!,
-      pomodoro: { mode, status: "running", endAt, remainingMs: null, cycles, taskId },
+      pomodoro: { mode, status: "running", endAt, remainingMs: null, cycles, taskId, runKey },
     });
     resolvingEndAtRef.current = null;
   }, [credit, durationMs, persist]);
@@ -407,7 +416,9 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       return;
     }
     const base = p.status === "paused" && p.remainingMs !== null ? p.remainingMs : durationMs(p.mode, cur.durations);
-    persist({ ...cur, pomodoro: { ...p, status: "running", endAt: Date.now() + base, remainingMs: null } });
+    const runKey = p.mode === "focus" ? p.runKey ?? crypto.randomUUID() : null;
+    persist({ ...cur, pomodoro: { ...p, runKey, status: "running", endAt: Date.now() + base, remainingMs: null } });
+    if (runKey && !p.runKey) void beginFocusRunAction(runKey, cur.durations.focus).catch(() => undefined);
   }, [persist, durationMs]);
 
   /**
@@ -440,10 +451,11 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       void resolvePomodoro();
       return;
     }
+    if (p.runKey) void abandonFocusRunAction(p.runKey).catch(() => undefined);
     bankPartialFocus(cur);
     persist({
       ...cur,
-      pomodoro: { ...p, status: "idle", endAt: null, remainingMs: null },
+      pomodoro: { ...p, status: "idle", endAt: null, remainingMs: null, runKey: null },
     });
   }, [persist, bankPartialFocus, resolvePomodoro]);
 
@@ -454,10 +466,11 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       void resolvePomodoro();
       return;
     }
+    if (cur.pomodoro.runKey) void abandonFocusRunAction(cur.pomodoro.runKey).catch(() => undefined);
     if (mode !== "focus") bankPartialFocus(cur);
     persist({
       ...cur,
-      pomodoro: { ...cur.pomodoro, mode, status: "idle", endAt: null, remainingMs: null },
+      pomodoro: { ...cur.pomodoro, mode, status: "idle", endAt: null, remainingMs: null, runKey: null },
     });
   }, [persist, bankPartialFocus, resolvePomodoro]);
 
@@ -469,6 +482,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       void resolvePomodoro();
       return;
     }
+    if (p.runKey) void abandonFocusRunAction(p.runKey).catch(() => undefined);
     const banked = bankPartialFocus(cur);
     const next: Mode = p.mode === "focus" ? (p.cycles + 1) % 4 === 0 ? "long" : "short" : "focus";
     persist({
@@ -479,6 +493,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
         status: "idle",
         endAt: null,
         remainingMs: null,
+        runKey: null,
         cycles: banked ? p.cycles + 1 : p.cycles,
       },
     });
@@ -597,7 +612,9 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     if (which === "pomodoro") {
       const p = next.pomodoro;
       const base = p.status === "paused" && p.remainingMs !== null ? p.remainingMs : durationMs(p.mode, next.durations);
-      next.pomodoro = { ...p, status: "running", endAt: Date.now() + base, remainingMs: null };
+      const runKey = p.mode === "focus" ? p.runKey ?? crypto.randomUUID() : null;
+      next.pomodoro = { ...p, runKey, status: "running", endAt: Date.now() + base, remainingMs: null };
+      if (runKey && !p.runKey) void beginFocusRunAction(runKey, next.durations.focus).catch(() => undefined);
     } else {
       next.stopwatch = { ...next.stopwatch, status: "running", startedAt: Date.now() };
     }
@@ -609,6 +626,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<TimerContextValue>(() => ({
     mode: st?.pomodoro.mode ?? "focus",
+    runKey: st?.pomodoro.runKey ?? null,
     runStatus: st?.pomodoro.status ?? "idle",
     msLeft,
     cycles: st?.pomodoro.cycles ?? 0,

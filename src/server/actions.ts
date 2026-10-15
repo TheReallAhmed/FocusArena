@@ -100,6 +100,7 @@ export async function completeFocusSession(input: {
   taskId?: number | null;
   project?: string | null;
   note?: string | null;
+  runKey?: string | null;
 }): Promise<FocusResult> {
   const user = await requireUser();
   const minutes = Math.max(1, Math.min(600, Math.round(input.minutes)));
@@ -108,9 +109,10 @@ export async function completeFocusSession(input: {
     taskId: input.taskId,
     project: input.project ?? null,
     note: input.note ?? null,
+    runKey: input.runKey ?? null,
   });
   revalidateAll();
-  return { ok: true, gained: minutes, ...res };
+  return { ok: true, ...res };
 }
 
 /* ------------------------------- TASKS ------------------------------- */

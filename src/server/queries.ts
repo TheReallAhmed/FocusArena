@@ -144,6 +144,26 @@ export async function getLeaderboard(tab: "week" | "all" | "streak", limit = 50)
   return rows.map((r) => ({ ...r, minutes: Number(r.minutes), badges: Number(r.badges), badgeKeys: parseKeys(r.badgeKeys) }));
 }
 
+/** Separate, self-reported focus-quality metric; the existing XP/time leaderboard is unchanged. */
+export async function getFocusQualityLeaderboard(limit = 5) {
+  const averageQuality = sql<number>`round(avg(${focusSessions.focusQuality}))::int`;
+  const scoredRounds = count(focusSessions.id);
+  return db.select({
+    id: users.id,
+    username: users.username,
+    displayName: users.displayName,
+    avatarHue: users.avatarHue,
+    averageQuality,
+    scoredRounds,
+  }).from(users)
+    .innerJoin(focusSessions, eq(focusSessions.userId, users.id))
+    .where(isNotNull(focusSessions.focusQuality))
+    .groupBy(users.id)
+    .having(sql`count(${focusSessions.id}) >= 5`)
+    .orderBy(desc(averageQuality), desc(scoredRounds), asc(users.id))
+    .limit(limit);
+}
+
 /* ----------------------------- CALENDAR ----------------------------- */
 
 export async function getCalendarData(user: User, year: number, month: number) {

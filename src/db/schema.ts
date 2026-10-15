@@ -5,11 +5,14 @@ import {
   text,
   integer,
   boolean,
+  date,
   timestamp,
   primaryKey,
   index,
   uniqueIndex,
+  check,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 export const users = pgTable(
   "users",
@@ -66,14 +69,108 @@ export const focusSessions = pgTable(
     note: varchar("note", { length: 200 }),
     minutes: integer("minutes").notNull(),
     day: varchar("day", { length: 10 }).notNull(),
+    runKey: varchar("run_key", { length: 36 }),
+    focusQuality: integer("focus_quality"),
+    focusQualityVersion: integer("focus_quality_version"),
     startedAt: timestamp("started_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
   },
   (t) => [
     index("focus_sessions_user_day_idx").on(t.userId, t.day),
     index("focus_sessions_day_idx").on(t.day),
     index("focus_sessions_project_idx").on(t.userId, t.project),
+    uniqueIndex("focus_sessions_run_key_idx").on(t.runKey),
+    check("focus_sessions_quality_range_chk", sql`${t.focusQuality} is null or ${t.focusQuality} between 0 and 100`),
+  ]
+);
+
+export const focusSessionRuns = pgTable(
+  "focus_session_runs",
+  {
+    runKey: varchar("run_key", { length: 36 }).primaryKey(),
+    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    focusSessionId: integer("focus_session_id").references(() => focusSessions.id, { onDelete: "set null" }),
+    plannedMinutes: integer("planned_minutes").notNull(),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("focus_runs_user_started_idx").on(t.userId, t.startedAt),
+    uniqueIndex("focus_runs_session_idx").on(t.focusSessionId),
+    check("focus_runs_minutes_chk", sql`${t.plannedMinutes} between 1 and 120`),
+    check("focus_runs_status_chk", sql`${t.status} in ('active', 'completed', 'abandoned')`),
+  ]
+);
+
+export const distractionEvents = pgTable(
+  "distraction_events",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    runKey: varchar("run_key", { length: 36 }).notNull().references(() => focusSessionRuns.runKey, { onDelete: "cascade" }),
+    clientEventId: varchar("client_event_id", { length: 36 }).notNull(),
+    source: varchar("source", { length: 24 }).notNull(),
+    note: varchar("note", { length: 240 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("distractions_user_created_idx").on(t.userId, t.createdAt),
+    index("distractions_run_idx").on(t.runKey, t.createdAt),
+    uniqueIndex("distractions_user_client_event_idx").on(t.userId, t.clientEventId),
+    check("distractions_source_chk", sql`${t.source} in ('phone', 'interruption', 'thought', 'noise', 'other')`),
+  ]
+);
+
+export const duels = pgTable(
+  "duels",
+  {
+    id: serial("id").primaryKey(),
+    pairKey: varchar("pair_key", { length: 48 }).notNull(),
+    challengerId: integer("challenger_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    opponentId: integer("opponent_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    status: varchar("status", { length: 16 }).notNull().default("pending"),
+    invitedAt: timestamp("invited_at", { withTimezone: true }).notNull().defaultNow(),
+    invitationExpiresAt: timestamp("invitation_expires_at", { withTimezone: true }).notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }),
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    requiredRounds: integer("required_rounds").notNull().default(10),
+    minimumFocusMinutes: integer("minimum_focus_minutes").notNull().default(25),
+    taskCategory: varchar("task_category", { length: 20 }).notNull().default("any"),
+    stake: varchar("stake", { length: 160 }),
+    winnerId: integer("winner_id").references(() => users.id, { onDelete: "set null" }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("duels_challenger_status_idx").on(t.challengerId, t.status),
+    index("duels_opponent_status_idx").on(t.opponentId, t.status),
+    uniqueIndex("duels_open_pair_idx").on(t.pairKey).where(sql`${t.status} in ('pending', 'active')`),
+    check("duels_distinct_players_chk", sql`${t.challengerId} <> ${t.opponentId}`),
+    check("duels_status_chk", sql`${t.status} in ('pending', 'active', 'completed', 'declined', 'cancelled', 'expired')`),
+    check("duels_rounds_chk", sql`${t.requiredRounds} between 1 and 100`),
+    check("duels_minimum_minutes_chk", sql`${t.minimumFocusMinutes} between 1 and 120`),
+  ]
+);
+
+export const deepWorkJournal = pgTable(
+  "deep_work_journal",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    localDay: date("local_day", { mode: "string" }).notNull(),
+    timeZone: varchar("time_zone", { length: 64 }).notNull(),
+    wentWell: varchar("went_well", { length: 1200 }).notNull().default(""),
+    blockers: varchar("blockers", { length: 1200 }).notNull().default(""),
+    tomorrowPriority: varchar("tomorrow_priority", { length: 600 }).notNull().default(""),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("journal_user_day_idx").on(t.userId, t.localDay),
+    index("journal_user_updated_idx").on(t.userId, t.updatedAt),
   ]
 );
 

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Crown, Flame, Trophy, Medal, Sparkles } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
-import { getLeaderboard } from "@/server/queries";
+import { getFocusQualityLeaderboard, getLeaderboard } from "@/server/queries";
 import { Avatar, AdminChip, LevelChip } from "@/components/widgets";
 import { BadgeRail } from "@/components/badge-rail";
 import { LiveRefresh } from "@/components/live-refresh";
@@ -33,6 +33,7 @@ export default async function LeaderboardPage({
   const params = await searchParams;
   const tab: Tab = params.tab === "all" || params.tab === "streak" ? params.tab : "week";
   const rows = await getLeaderboard(tab);
+  const qualityRows = await getFocusQualityLeaderboard();
   const allTime = tab === "week" ? await getLeaderboard("all") : rows;
   const levelMap = new Map(allTime.map((r) => [r.id, levelFromXp(r.minutes)]));
 
@@ -188,6 +189,23 @@ export default async function LeaderboardPage({
           </p>
         </>
       )}
+
+      <section className="glass-card overflow-hidden">
+        <div className="border-b border-line p-5">
+          <h2 className="text-sm font-bold text-white">Focus quality · separate metric</h2>
+          <p className="mt-1 text-xs text-[#6d6a8f]">Average self-reported quality across at least 5 completed, tracked focus rounds. This does not alter the XP/time rankings above.</p>
+        </div>
+        {qualityRows.length === 0 ? <p className="p-5 text-xs text-[#8f8cb0]">No player has 5 scored focus rounds yet.</p> : qualityRows.map((row, index) => (
+          <Link key={row.id} href={`/u/${row.username}`} className="flex items-center gap-3 border-b border-line/70 px-5 py-3 last:border-0 hover:bg-white/[0.02]">
+            <span className="tnum w-6 text-center text-xs font-bold text-[#6d6a8f]">{index + 1}</span>
+            <Avatar name={row.displayName} hue={row.avatarHue} size={32} />
+            <span className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{row.displayName} <span className="text-xs font-normal text-[#6d6a8f]">@{row.username}</span></span>
+            <span className="tnum text-sm font-bold text-mint-400">{row.averageQuality}%</span>
+            <span className="text-[0.65rem] text-[#6d6a8f]">{row.scoredRounds} rounds</span>
+          </Link>
+        ))}
+        <p className="px-5 py-3 text-[0.65rem] text-[#6d6a8f]">Quality formula v1: 100 − 12.5 points per user-logged distraction, rounded and clamped to 0–100. It cannot verify attention or unreported distractions.</p>
+      </section>
     </div>
   );
 }

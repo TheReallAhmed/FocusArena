@@ -13,6 +13,7 @@ import { fmtClock } from "@/lib/dates";
 import { BadgeIcon } from "@/components/widgets";
 import { ProjectPicker } from "@/components/project-picker";
 import { SessionNoteInput } from "@/components/session-note";
+import { DistractionTrap } from "@/components/distraction-trap";
 
 type Mode = "focus" | "short" | "long";
 type TaskLite = { id: number; title: string; priority: string };
@@ -43,7 +44,7 @@ export function FocusTimer({
   const router = useRouter();
   const timer = useTimer();
   const {
-    mode, runStatus, msLeft, cycles, taskId, todayMin, lastResult,
+    mode, runStatus, msLeft, cycles, taskId, runKey, todayMin, lastResult,
     settings, setSettings, seedDaily, pToggle, pReset, pSkip, pSetMode, pSetTask,
     partialMode, setPartialMode,
   } = timer;
@@ -354,6 +355,8 @@ export function FocusTimer({
         )}
 
         {controls}
+
+        <DistractionTrap key={runKey ?? "no-run"} runKey={runKey} plannedMinutes={settings.durations.focus} active={mode === "focus" && runStatus !== "idle"} />
 
         <p className="relative mt-4 hidden items-center justify-center gap-4 text-[0.68rem] text-[#5c5a78] sm:flex">
           <Keyboard size={12} />

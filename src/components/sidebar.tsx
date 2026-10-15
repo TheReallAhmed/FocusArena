@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Timer, ListChecks, CalendarDays, Trophy, Users,
+  LayoutDashboard, Timer, ListChecks, CalendarDays, Trophy, Users, BookOpen, Brain, Swords,
   UsersRound, ShieldCheck, UserRoundCog, Watch, ScrollText,
 } from "lucide-react";
 import { Logo } from "@/components/brand";
@@ -15,6 +15,9 @@ import { levelFromXp } from "@/lib/xp";
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/focus", label: "Focus", icon: Timer },
+  { href: "/distractions", label: "Distractions", icon: Brain },
+  { href: "/duels", label: "Duel Mode", icon: Swords },
+  { href: "/journal", label: "Journal", icon: BookOpen },
   { href: "/stopwatch", label: "Stopwatch", icon: Watch },
   { href: "/rooms", label: "Rooms", icon: UsersRound },
   { href: "/tasks", label: "Tasks", icon: ListChecks },

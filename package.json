@@ -6,6 +6,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint .",
+    "test": "node --experimental-strip-types --test tests/feature-metrics.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
