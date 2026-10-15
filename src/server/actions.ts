@@ -420,6 +420,7 @@ export async function updateLocaleAction(locale: string) {
   const user = await requireUser();
   if (locale !== "en" && locale !== "ar") return { error: "Choose a supported language." };
   await db.update(users).set({ locale }).where(eq(users.id, user.id));
+  revalidatePath("/", "layout");
   for (const path of ["/dashboard", "/focus", "/distractions", "/duels", "/journal", "/stopwatch", "/rooms", "/tasks", "/calendar", "/history", "/leaderboard", "/squads", "/settings", "/settings/profile", "/shop"]) revalidatePath(path);
   return { ok: true as const, locale };
 }

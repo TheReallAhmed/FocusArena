@@ -18,6 +18,7 @@ import { BadgeRail } from "@/components/badge-rail";
 import { BADGES, levelProgress } from "@/lib/xp";
 import { fmtMinutes, dayLabel, timeAgo } from "@/lib/dates";
 import { normalizeLocale, t } from "@/lib/i18n";
+import { localizeBadge } from "@/lib/badge-i18n";
 
 export const metadata: Metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";
@@ -30,16 +31,16 @@ function greeting(locale: "en" | "ar") {
   return t(locale, "dashboard.greeting.evening");
 }
 
-function pulseLine(item: PulseItem) {
+function pulseLine(item: PulseItem, locale: "en" | "ar") {
   switch (item.kind) {
     case "session":
-      return <>banked <b className="text-brand-300">+{item.minutes}m</b> of deep focus</>;
+      return <>{t(locale, "dashboard.pulse.session", { minutes: item.minutes ?? 0 })}</>;
     case "badge":
-      return <>unlocked the <b style={{ color: `hsl(${item.badgeHue} 92% 74%)` }}>{item.badgeName}</b> badge</>;
+      return <>{t(locale, "dashboard.pulse.badge", { name: item.badgeName ?? "" })}</>;
     case "joined":
-      return <>just entered the arena</>;
+      return <>{t(locale, "dashboard.pulse.joined")}</>;
     case "squad":
-      return <>founded squad <b className="text-neon-300">{item.squadName}</b></>;
+      return <>{t(locale, "dashboard.pulse.squad", { name: item.squadName ?? "" })}</>;
   }
 }
 
@@ -54,11 +55,11 @@ export default async function DashboardPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
   const locale = normalizeLocale(user.locale);
-  const text = (key: string) => t(locale, key);
+  const text = (key: string, values?: Record<string, string | number>) => t(locale, key, values);
 
   const [data, quote, pulse, top3, insights] = await Promise.all([
     getDashboardData(user),
-    getDailyQuote(),
+    getDailyQuote(locale),
     getArenaPulse(14),
     getLeaderboard("week", 3),
     getPersonalFocusInsights(user),
@@ -67,7 +68,7 @@ export default async function DashboardPage() {
 
   const prog = levelProgress(user.xp);
   const earnedKeys = new Set(data.earnedBadges.map((b) => b.key));
-  const week = data.week.map((d) => ({ ...d, label: dayLabel(d.day) }));
+  const week = data.week.map((d) => ({ ...d, label: dayLabel(d.day, locale) }));
 
   return (
     <div className="space-y-5">
@@ -79,7 +80,7 @@ export default async function DashboardPage() {
           </p>
           <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-white sm:text-3xl">
             {greeting(locale)}, <span className="text-gradient">{user.displayName}</span>
-            {user.role === "admin" && <span className="ml-2 align-middle"><AdminChip /></span>}
+            {user.role === "admin" && <span className="ml-2 align-middle"><AdminChip locale={locale} /></span>}
           </h1>
         </div>
         <Link href="/focus" className="btn btn-primary">
@@ -107,7 +108,7 @@ export default async function DashboardPage() {
           <div className="min-w-52 flex-1 sm:max-w-xs">
             <div className="flex items-center justify-between text-xs">
               <span className="font-bold text-brand-300">{text("common.level")} {prog.level}</span>
-              <span className="tnum text-[#8f8cb0]">{prog.nextIn} XP {locale === "ar" ? "للمستوى" : "to level"} {prog.level + 1}</span>
+              <span className="tnum text-[#8f8cb0]">{text("profile.levelNext", { xp: prog.nextIn, level: prog.level + 1 })}</span>
             </div>
             <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white/8">
               <div
@@ -121,27 +122,27 @@ export default async function DashboardPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard icon={Clock3} label={text("dashboard.today")} value={fmtMinutes(data.todayMinutes)} sub={text("dashboard.focused")} hue={255} />
-        <StatCard icon={CalendarRange} label={text("dashboard.thisWeek")} value={fmtMinutes(data.weekTotal)} sub={locale === "ar" ? "من الاثنين إلى اليوم" : "Monday → today"} hue={190} />
-        <StatCard icon={Sigma} label={text("dashboard.allTime")} value={fmtMinutes(user.xp)} sub={`${data.totalSessions} ${text("dashboard.sessions")}`} hue={150} />
+        <StatCard icon={Clock3} label={text("dashboard.today")} value={fmtMinutes(data.todayMinutes, locale)} sub={text("dashboard.focused")} hue={255} />
+        <StatCard icon={CalendarRange} label={text("dashboard.thisWeek")} value={fmtMinutes(data.weekTotal, locale)} sub={locale === "ar" ? "من الاثنين إلى اليوم" : "Monday → today"} hue={190} />
+        <StatCard icon={Sigma} label={text("dashboard.allTime")} value={fmtMinutes(user.xp, locale)} sub={`${data.totalSessions} ${text("dashboard.sessions")}`} hue={150} />
         <StatCard icon={Zap} label={text("dashboard.totalXp")} value={String(user.xp)} sub={`${text("common.level")} ${prog.level} · ${data.earnedBadges.length}/${BADGES.length} ${locale === "ar" ? "شارة" : "badges"}`} hue={45} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <section className="glass-card p-5" aria-label="Commitment outcomes">
+        <section className="glass-card p-5" aria-label={text("dashboard.commitment")}>
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm font-bold text-white">{text("dashboard.commitment")}</h2>
             <span className="chip !text-[0.62rem]">{text("dashboard.private")}</span>
           </div>
           <p className="tnum mt-3 text-2xl font-black text-white">{insights.commitments.percentage === null ? "—" : `${insights.commitments.percentage}%`}</p>
           <p className="mt-1 text-xs text-[#8f8cb0]">{insights.commitments.fulfilled} {text("dashboard.fulfilled")} {locale === "ar" ? "من أصل" : "out of"} {insights.commitments.resolved} {text("dashboard.resolved")}</p>
-          <p className="mt-1 text-[0.68rem] text-[#6d6a8f]">{insights.commitments.broken} self-reported not fulfilled · {insights.commitments.unresolved} unresolved</p>
+          <p className="mt-1 text-[0.68rem] text-[#6d6a8f]">{insights.commitments.broken} {text("dashboard.commitmentBroken")} · {insights.commitments.unresolved} {text("dashboard.unresolved")}</p>
           <Link href="/history" className="mt-3 inline-flex text-xs font-semibold text-brand-300 hover:text-brand-200">{text("dashboard.history")}</Link>
         </section>
 
-        <section className="glass-card p-5" aria-label="Energy and focus duration">
+        <section className="glass-card p-5" aria-label={text("dashboard.energy")}>
           <h2 className="text-sm font-bold text-white">{text("dashboard.energy")}</h2>
-          <p className="mt-1 text-[0.65rem] text-[#6d6a8f]">By energy: completed-round duration, logged quality and ended-round completion rate.</p>
+          <p className="mt-1 text-[0.65rem] text-[#6d6a8f]">{text("dashboard.energyDescription")}</p>
           <div className="mt-4 space-y-2">
             {insights.energy.byEnergy.map((bucket) => {
               const max = Math.max(1, ...insights.energy.byEnergy.map((item) => item.count));
@@ -149,28 +150,28 @@ export default async function DashboardPage() {
               return <div key={bucket.rating} className="grid grid-cols-[2.5rem_1fr_4.7rem] items-center gap-2 text-[0.68rem]">
                 <span className="text-[#8f8cb0]">{bucket.rating}/5</span>
                 <div className="h-1.5 overflow-hidden rounded-full bg-white/8"><div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-neon-400" style={{ width: `${Math.max(bucket.count ? 5 : 0, Math.round((bucket.count / max) * 100))}%` }} /></div>
-                <span title={`Average quality: ${bucket.averageQuality ?? "not available"}. Ended tracked rounds completed: ${completion?.completed ?? 0}/${completion?.attempts ?? 0}.`} className="tnum text-right text-[#a5a2c8]">{bucket.averageMinutes === null ? "—" : `${bucket.averageMinutes}m`} · Q{bucket.averageQuality ?? "—"}</span>
+                <span title={text("dashboard.averageQuality", { quality: bucket.averageQuality ?? "—", completed: completion?.completed ?? 0, attempts: completion?.attempts ?? 0 })} className="tnum text-right text-[#a5a2c8]">{bucket.averageMinutes === null ? "—" : `${bucket.averageMinutes}m`} · {locale === "ar" ? "ج" : "Q"}{bucket.averageQuality ?? "—"}</span>
               </div>;
             })}
           </div>
-          <p className="mt-2 text-[0.6rem] text-[#6d6a8f]">Bars = completed rated sessions · Q = average focus quality · completion (done/ended): {insights.completionByEnergy.map((item) => `${item.rating}:${item.completed}/${item.attempts}`).join(" · ")}</p>
+          <p className="mt-2 text-[0.6rem] text-[#6d6a8f]">{text("dashboard.energyBars", { values: insights.completionByEnergy.map((item) => `${item.rating}:${item.completed}/${item.attempts}`).join(" · ") })}</p>
           <p className="mt-3 text-[0.65rem] leading-relaxed text-[#6d6a8f]">
             {insights.energy.highVsLowRatio === null
-              ? `Need at least ${insights.energy.minimumSample} sessions in both low- and high-energy groups for a comparison.`
-              : `Observed association: high-energy rounds averaged ${insights.energy.highVsLowRatio}× the duration of low-energy rounds (n=${insights.energy.highSample} vs ${insights.energy.lowSample}); this is not causal.`}
+              ? text("dashboard.needSample", { count: insights.energy.minimumSample })
+              : text("dashboard.observedAssociation", { ratio: insights.energy.highVsLowRatio, high: insights.energy.highSample, low: insights.energy.lowSample })}
           </p>
-          {(insights.bestUtcHour || insights.bestUtcWeekday) && <p className="mt-2 border-t border-line pt-2 text-[0.63rem] text-[#6d6a8f]">Observed longer-session periods (UTC, n≥3): {insights.bestUtcHour && `${String(insights.bestUtcHour.key).padStart(2, "0")}:00 hour · `}{insights.bestUtcWeekday && `${insights.bestUtcWeekday.label} (${insights.bestUtcWeekday.count} sessions)`}</p>}
+          {(insights.bestUtcHour || insights.bestUtcWeekday) && <p className="mt-2 border-t border-line pt-2 text-[0.63rem] text-[#6d6a8f]">{text("dashboard.bestPeriods", { value: [insights.bestUtcHour && text("dashboard.longHour", { hour: String(insights.bestUtcHour.key).padStart(2, "0") }), insights.bestUtcWeekday && text("dashboard.longWeekday", { weekday: locale === "ar" ? ({ Mon: "الاثنين", Tue: "الثلاثاء", Wed: "الأربعاء", Thu: "الخميس", Fri: "الجمعة", Sat: "السبت", Sun: "الأحد" } as Record<string, string>)[insights.bestUtcWeekday.label] ?? insights.bestUtcWeekday.label : insights.bestUtcWeekday.label, count: insights.bestUtcWeekday.count })].filter(Boolean).join(" · ") })}</p>}
         </section>
 
-        <section className="glass-card p-5" aria-label="Verification and XP balance">
+        <section className="glass-card p-5" aria-label={text("dashboard.accountability")}>
           <h2 className="text-sm font-bold text-white">{text("dashboard.accountability")}</h2>
           <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-            <div className="rounded-xl border border-line bg-white/[0.02] p-2"><p className="tnum text-lg font-bold text-mint-300">{insights.verification.verified}</p><p className="text-[0.58rem] text-[#6d6a8f]">verified</p></div>
-            <div className="rounded-xl border border-line bg-white/[0.02] p-2"><p className="tnum text-lg font-bold text-gold-300">{insights.verification.partial}</p><p className="text-[0.58rem] text-[#6d6a8f]">partial</p></div>
-            <div className="rounded-xl border border-line bg-white/[0.02] p-2"><p className="tnum text-lg font-bold text-[#a5a2c8]">{insights.verification.unverified}</p><p className="text-[0.58rem] text-[#6d6a8f]">unverified</p></div>
+            <div className="rounded-xl border border-line bg-white/[0.02] p-2"><p className="tnum text-lg font-bold text-mint-300">{insights.verification.verified}</p><p className="text-[0.58rem] text-[#6d6a8f]">{text("dashboard.verified")}</p></div>
+            <div className="rounded-xl border border-line bg-white/[0.02] p-2"><p className="tnum text-lg font-bold text-gold-300">{insights.verification.partial}</p><p className="text-[0.58rem] text-[#6d6a8f]">{text("dashboard.partial")}</p></div>
+            <div className="rounded-xl border border-line bg-white/[0.02] p-2"><p className="tnum text-lg font-bold text-[#a5a2c8]">{insights.verification.unverified}</p><p className="text-[0.58rem] text-[#6d6a8f]">{text("dashboard.unverified")}</p></div>
           </div>
-          <p className="mt-3 text-[0.68rem] text-[#6d6a8f]">Attention prompts are optional and do not prove continuous focus.</p>
-          <div className="mt-3 flex items-center justify-between border-t border-line pt-3"><span className="text-xs text-[#8f8cb0]">Spendable XP</span><span className="tnum text-sm font-bold text-gold-300">{user.xpBalance.toLocaleString()}</span></div>
+          <p className="mt-3 text-[0.68rem] text-[#6d6a8f]">{text("dashboard.attentionDisclaimer")}</p>
+          <div className="mt-3 flex items-center justify-between border-t border-line pt-3"><span className="text-xs text-[#8f8cb0]">{text("shop.balance")}</span><span className="tnum text-sm font-bold text-gold-300">{user.xpBalance.toLocaleString()}</span></div>
           <Link href="/shop" className="mt-2 inline-flex text-xs font-semibold text-brand-300 hover:text-brand-200">{text("dashboard.shop")} →</Link>
         </section>
       </div>
@@ -184,7 +185,7 @@ export default async function DashboardPage() {
               {(delta.pct !== 0 || data.weekTotal > 0) && (
                 <span className={`chip !py-0.5 !text-[0.65rem] !font-bold ${delta.pct >= 0 ? "text-mint-400" : "text-rose-300"}`}>
                   {delta.pct >= 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
-                  {delta.pct >= 0 ? "+" : ""}{delta.pct}% vs last week
+                  {text(delta.pct >= 0 ? "dashboard.weekCompare" : "dashboard.weekCompareDown", { percent: Math.abs(delta.pct) })}
                 </span>
               )}
             </div>
@@ -192,7 +193,7 @@ export default async function DashboardPage() {
               {text("dashboard.calendar")} →
             </Link>
           </div>
-          <WeekChart data={week} />
+          <WeekChart data={week} locale={locale} />
         </div>
 
         <div className="glass-card flex flex-col justify-between gap-5 p-5 xl:col-span-2">
@@ -244,9 +245,9 @@ export default async function DashboardPage() {
                   <Avatar name={item.displayName} hue={item.avatarHue} size={28} />
                   <p className="min-w-0 flex-1 truncate text-[0.82rem] text-[#c7c4de]">
                     <Link href={`/u/${item.username}`} className="font-semibold text-white hover:text-brand-300">
-                      {item.displayName}
+                  {item.displayName}
                     </Link>{" "}
-                    {pulseLine(item)}
+                    {pulseLine(item, locale)}
                   </p>
                   <span
                     className="hidden h-6 w-6 shrink-0 items-center justify-center rounded-md sm:flex"
@@ -254,7 +255,7 @@ export default async function DashboardPage() {
                   >
                     <Icon size={12} />
                   </span>
-                  <span className="tnum shrink-0 text-[0.63rem] text-[#5c5a78]">{timeAgo(item.at)}</span>
+                <span className="tnum shrink-0 text-[0.63rem] text-[#5c5a78]">{timeAgo(item.at, locale)}</span>
                 </li>
               );
             })}
@@ -268,14 +269,14 @@ export default async function DashboardPage() {
         <div className="glass-card p-5">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-sm font-bold text-white">
-              <Medal size={15} className="text-gold-400" /> This week&apos;s podium
+              <Medal size={15} className="text-gold-400" /> {text("dashboard.podium")}
             </h2>
-            <Link href="/leaderboard" className="text-xs font-semibold text-brand-300 hover:text-brand-200">All →</Link>
+            <Link href="/leaderboard" className="text-xs font-semibold text-brand-300 hover:text-brand-200">{text("dashboard.all")}</Link>
           </div>
           {top3.length === 0 ? (
             <div className="py-6 text-center">
               <Sparkles size={20} className="mx-auto text-[#4a4866]" />
-              <p className="mt-2 text-sm text-[#8f8cb0]">No contenders yet this week</p>
+              <p className="mt-2 text-sm text-[#8f8cb0]">{text("dashboard.noContenders")}</p>
             </div>
           ) : (
             <ul className="space-y-2">
@@ -293,11 +294,11 @@ export default async function DashboardPage() {
                     <Avatar name={r.displayName} hue={r.avatarHue} imageUrl={r.avatarUrl} frameKey={r.equippedFrame} size={30} />
                     <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-sm font-semibold text-white">
                       {r.displayName}
-                      {r.role === "admin" && <AdminChip small />}
-                      <PerkTitleBadge rewardKey={r.equippedTitle} />
+                      {r.role === "admin" && <AdminChip small locale={locale} />}
+                      <PerkTitleBadge rewardKey={r.equippedTitle} locale={locale} />
                     </span>
-                    <span className="hidden sm:flex"><BadgeRail keys={r.badgeKeys} total={r.badges} max={3} size={19} /></span>
-                    <span className="tnum text-xs font-bold text-[#a5a2c8]">{fmtMinutes(Number(r.minutes))}</span>
+                    <span className="hidden sm:flex"><BadgeRail keys={r.badgeKeys} total={r.badges} max={3} size={19} locale={locale} /></span>
+                    <span className="tnum text-xs font-bold text-[#a5a2c8]">{fmtMinutes(Number(r.minutes), locale)}</span>
                   </Link>
                 </li>
               ))}
@@ -308,15 +309,15 @@ export default async function DashboardPage() {
         {/* Tasks preview */}
         <div className="glass-card p-5">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-bold text-white">Up next</h2>
-            <Link href="/tasks" className="text-xs font-semibold text-brand-300 hover:text-brand-200">All tasks →</Link>
+            <h2 className="text-sm font-bold text-white">{text("dashboard.upNext")}</h2>
+            <Link href="/tasks" className="text-xs font-semibold text-brand-300 hover:text-brand-200">{text("dashboard.allTasks")}</Link>
           </div>
           {data.activeTasks.length === 0 ? (
             <div className="py-6 text-center">
               <ListChecks size={20} className="mx-auto text-[#4a4866]" />
-              <p className="mt-2 text-sm text-[#8f8cb0]">No open tasks</p>
+              <p className="mt-2 text-sm text-[#8f8cb0]">{text("dashboard.noOpenTasks")}</p>
               <Link href="/tasks" className="mt-3 inline-block text-xs font-semibold text-brand-300 hover:text-brand-200">
-                Add your first task →
+                {text("dashboard.addFirstTask")}
               </Link>
             </div>
           ) : (
@@ -329,7 +330,7 @@ export default async function DashboardPage() {
                     }`}
                   />
                   <span className="min-w-0 flex-1 truncate text-sm text-[#d9d7ec]">{t.title}</span>
-                  <Link href={`/focus?task=${t.id}`} className="shrink-0 text-[#6d6a8f] transition hover:text-brand-300" title="Focus on this">
+                  <Link href={`/focus?task=${t.id}`} className="shrink-0 text-[#6d6a8f] transition hover:text-brand-300" title={text("dashboard.focusOnTask")}>
                     <Zap size={14} />
                   </Link>
                 </li>
@@ -341,14 +342,14 @@ export default async function DashboardPage() {
         {/* Trophy case */}
         <div className="glass-card p-5">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-bold text-white">Trophy case</h2>
+            <h2 className="text-sm font-bold text-white">{text("dashboard.trophyCase")}</h2>
             <span className="tnum text-xs text-[#8f8cb0]">{data.earnedBadges.length}/{BADGES.length}</span>
           </div>
           <div className="grid grid-cols-4 gap-2.5">
             {BADGES.slice(0, 12).map((b) => {
               const locked = !earnedKeys.has(b.key);
               return (
-                <div key={b.key} className="flex flex-col items-center gap-1.5" title={locked ? `${b.name} — ${b.desc}` : `${b.name} unlocked!`}>
+                <div key={b.key} className="flex flex-col items-center gap-1.5" title={locked ? `${localizeBadge(b, locale).name} — ${localizeBadge(b, locale).desc}` : `${localizeBadge(b, locale).name} ${text("profile.unlocked")}`}>
                   <div className="relative">
                     <BadgeIcon badge={b} size={44} locked={locked} />
                     {locked && (
@@ -358,14 +359,14 @@ export default async function DashboardPage() {
                     )}
                   </div>
                   <span className={`text-center text-[0.55rem] font-semibold leading-tight ${locked ? "text-[#4a4866]" : "text-[#a5a2c8]"}`}>
-                    {b.name}
+                    {localizeBadge(b, locale).name}
                   </span>
                 </div>
               );
             })}
           </div>
           <Link href={`/u/${user.username}`} className="btn btn-ghost mt-4 w-full !py-2 text-xs">
-            Full collection ({BADGES.length}) →
+            {text("dashboard.unlockedCount", { count: BADGES.length })}
           </Link>
         </div>
       </div>
@@ -374,23 +375,23 @@ export default async function DashboardPage() {
       <div className="glass-card p-5">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-sm font-bold text-white">
-            <History size={15} className="text-brand-300" /> Recent rounds
+            <History size={15} className="text-brand-300" /> {text("dashboard.recentRounds")}
           </h2>
-          <span className="tnum text-xs text-[#8f8cb0]">{data.totalSessions} all time</span>
+          <span className="tnum text-xs text-[#8f8cb0]">{text("dashboard.allTimeCount", { count: data.totalSessions })}</span>
         </div>
         {data.recentSessions.length === 0 ? (
           <div className="py-6 text-center">
-            <p className="text-sm text-[#8f8cb0]">No sessions yet — your first sprint is waiting.</p>
+            <p className="text-sm text-[#8f8cb0]">{text("dashboard.noSessions")}</p>
           </div>
         ) : (
           <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {data.recentSessions.map((s) => (
               <li key={s.id} className="flex items-center justify-between gap-3 rounded-xl border border-line bg-white/[0.02] px-3.5 py-2.5">
                 <div className="min-w-0">
-                  <p className="truncate text-sm text-[#d9d7ec]">{s.taskTitle ?? "Free focus"}</p>
+                  <p className="truncate text-sm text-[#d9d7ec]">{s.taskTitle ?? text("dashboard.freeFocus")}</p>
                   <p className="text-[0.68rem] text-[#6d6a8f]">
-                    {timeAgo(s.startedAt)} ·{" "}
-                    {new Date(s.startedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+                    {timeAgo(s.startedAt, locale)} ·{" "}
+                    {new Date(s.startedAt).toLocaleDateString(locale === "ar" ? "ar" : "en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
                   </p>
                 </div>
                 <span className="tnum shrink-0 rounded-md bg-brand-500/12 px-2 py-1 text-xs font-bold text-brand-300">

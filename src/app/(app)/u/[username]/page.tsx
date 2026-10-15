@@ -14,6 +14,8 @@ import { BADGES, levelProgress, TIER_META, sortByRarity, badgeScore, badgeProgre
 import { BadgeChip } from "@/components/badge-rail";
 import { ProjectBreakdown } from "@/components/project-breakdown";
 import { fmtMinutes } from "@/lib/dates";
+import { normalizeLocale, t } from "@/lib/i18n";
+import { localizeBadge, localizeTier } from "@/lib/badge-i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +33,8 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
   if (!profile) notFound();
 
   const { user, stats, earnedBadges, recentSessions, squads, contributions, projects } = profile;
+  const locale = normalizeLocale(me.locale);
+  const text = (key: string, values?: Record<string, string | number>) => t(locale, key, values);
   const prog = levelProgress(user.xp);
   const progg = { sessions: stats.sessions, minutes: user.xp, streak: user.streak, tasksDone: stats.tasksDone, level: prog.level };
   const earnedKeys = new Set(earnedBadges.map((b) => b.key));
@@ -56,27 +60,27 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
           <div className="min-w-0 flex-1">
             <h1 className="flex flex-wrap items-center gap-2.5 text-2xl font-bold tracking-tight text-white sm:text-3xl">
               <StyledDisplayName name={user.displayName} colorKey={user.equippedColor} iconKey={user.equippedIcon} logoKey={user.equippedLogo} />
-              {user.role === "admin" && <AdminChip />}
-              <PerkTitleBadge rewardKey={user.equippedTitle} />
-              {isMe && <span className="chip !text-[0.65rem] text-brand-300">this is you</span>}
+              {user.role === "admin" && <AdminChip locale={locale} />}
+              <PerkTitleBadge rewardKey={user.equippedTitle} locale={locale} />
+              {isMe && <span className="chip !text-[0.65rem] text-brand-300">{text("profile.thisIsYou")}</span>}
             </h1>
             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[#8f8cb0]">
               <span>@{user.username}</span>
-              <span>· grinding since {new Date(user.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })}</span>
+              <span>{text("profile.grindingSince", { date: new Date(user.createdAt).toLocaleDateString(locale === "ar" ? "ar" : "en-US", { month: "long", year: "numeric", timeZone: "UTC" }) })}</span>
               {user.location && <span className="inline-flex items-center gap-1"><MapPin size={12} /> {user.location}</span>}
             </p>
             {user.bio && (
               <p className="mt-3 max-w-xl text-sm leading-relaxed text-[#c7c4de]">{user.bio}</p>
             )}
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <LevelChip level={prog.level} />
+              <LevelChip level={prog.level} locale={locale} />
               {user.streak > 0 && (
                 <span className="chip !text-[0.7rem] !font-bold text-gold-400">
-                  <Flame size={12} /> {user.streak} day streak
+                  <Flame size={12} /> {user.streak} {text("profile.dayStreak")}
                 </span>
               )}
               <span className="chip !text-[0.7rem]">
-                <Medal size={12} className="text-brand-300" /> {earnedBadges.length}/{BADGES.length} badges
+                <Medal size={12} className="text-brand-300" /> {earnedBadges.length}/{BADGES.length} {text("profile.badges")}
               </span>
             </div>
             {(user.linkedInUrl || user.githubUrl || user.websiteUrl || isMe) && (
@@ -93,12 +97,12 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
                 )}
                 {user.websiteUrl && (
                   <a href={user.websiteUrl} target="_blank" rel="noreferrer" className="btn btn-ghost !px-3 !py-1.5 !text-[0.7rem] hover:!text-neon-300">
-                    <Globe2 size={13} /> Portfolio
+                    <Globe2 size={13} /> {text("profile.portfolio")}
                   </a>
                 )}
                 {isMe && (
                   <Link href="/settings/profile" className="btn btn-primary !px-3 !py-1.5 !text-[0.7rem]">
-                    <Pencil size={13} /> Edit profile
+                    <Pencil size={13} /> {text("profile.edit")}
                   </Link>
                 )}
               </div>
@@ -107,8 +111,8 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
           {/* Level progress */}
           <div className="w-full sm:w-56">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-bold text-brand-300">Level {prog.level}</span>
-              <span className="tnum text-[#8f8cb0]">{prog.nextIn} XP to {prog.level + 1}</span>
+              <span className="font-bold text-brand-300">{text("common.level")} {prog.level}</span>
+              <span className="tnum text-[#8f8cb0]">{text("profile.levelNext", { xp: prog.nextIn, level: prog.level + 1 })}</span>
             </div>
             <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white/8">
               <div
@@ -116,7 +120,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
                 style={{ width: `${prog.pct}%` }}
               />
             </div>
-            <p className="tnum mt-1.5 text-right text-[0.68rem] text-[#6d6a8f]">{user.xp} XP total</p>
+            <p className="tnum mt-1.5 text-right text-[0.68rem] text-[#6d6a8f]">{text("profile.totalXP", { xp: user.xp })}</p>
           </div>
         </div>
       </div>
@@ -124,12 +128,12 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         {[
-          { icon: Sigma, label: "Total focus", value: fmtMinutes(user.xp), hue: 255 },
-          { icon: Clock3, label: "Sessions", value: String(stats.sessions), hue: 190 },
-          { icon: UsersRound, label: "Group rounds", value: String(stats.groupSessions), hue: 160 },
-          { icon: CheckCircle2, label: "Tasks done", value: String(stats.tasksDone), hue: 140 },
-          { icon: CalendarCheck, label: "Active days", value: String(stats.activeDays), hue: 45 },
-          { icon: TrendingUp, label: "Best day", value: stats.bestDay ? fmtMinutes(stats.bestDay.minutes) : "—", hue: 350 },
+          { icon: Sigma, label: text("profile.totalFocus"), value: fmtMinutes(user.xp, locale), hue: 255 },
+          { icon: Clock3, label: text("profile.sessions"), value: String(stats.sessions), hue: 190 },
+          { icon: UsersRound, label: text("profile.groupRounds"), value: String(stats.groupSessions), hue: 160 },
+          { icon: CheckCircle2, label: text("profile.tasksDone"), value: String(stats.tasksDone), hue: 140 },
+          { icon: CalendarCheck, label: text("profile.activeDays"), value: String(stats.activeDays), hue: 45 },
+          { icon: TrendingUp, label: text("profile.bestDay"), value: stats.bestDay ? fmtMinutes(stats.bestDay.minutes, locale) : "—", hue: 350 },
         ].map((s) => (
           <div key={s.label} className="glass-card p-4 text-center">
             <span
@@ -156,10 +160,10 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <h2 className="flex items-center gap-2 text-base font-bold text-white">
-                <Medal size={17} className="text-gold-400" /> Badge collection
+                <Medal size={17} className="text-gold-400" /> {text("profile.badgeCollection")}
               </h2>
               <p className="mt-1 text-xs text-[#8f8cb0]">
-                Every badge is earned by real focus — no shortcuts.
+                {text("profile.badgeDescription")}
               </p>
             </div>
             <div className="text-right">
@@ -167,7 +171,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
                 {earnedBadges.length}
                 <span className="text-base font-bold text-[#6d6a8f]">/{BADGES.length}</span>
               </p>
-              <p className="text-[0.62rem] font-semibold uppercase tracking-[0.14em] text-gold-400">unlocked</p>
+              <p className="text-[0.62rem] font-semibold uppercase tracking-[0.14em] text-gold-400">{text("profile.unlocked")}</p>
             </div>
           </div>
           <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-white/8">
@@ -183,7 +187,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
           <div className="mb-6 rounded-2xl border border-gold-400/25 bg-gold-400/[0.06] p-4">
             <div className="mb-3 flex flex-wrap items-center gap-3">
               <span className="text-[0.62rem] font-bold uppercase tracking-[0.16em] text-gold-400">
-                Earned
+                {text("profile.earned")}
               </span>
               {(["legendary", "epic", "rare", "common"] as const).map((t) => {
                 const n = earnedBadges.filter((e) => e.def?.tier === t).length;
@@ -194,17 +198,17 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
                     className="rounded-full border px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider"
                     style={{ borderColor: TIER_META[t].ring, color: TIER_META[t].text }}
                   >
-                    {n} {TIER_META[t].label}
+                    {n} {localizeTier(t, locale)}
                   </span>
                 );
               })}
               <span className="tnum ml-auto text-[0.65rem] font-bold text-[#a5a2c8]">
-                {badgeScore(earnedBadges.map((e) => e.key))} rarity points
+                {badgeScore(earnedBadges.map((e) => e.key))} {text("profile.rarityPoints")}
               </span>
             </div>
             <div className="flex flex-wrap gap-2">
               {sortByRarity(earnedBadges.map((e) => e.key)).map((b) => (
-                <BadgeChip key={b.key} badge={b} size={26} showTier />
+                  <BadgeChip key={b.key} badge={localizeBadge(b, locale)} size={26} showTier locale={locale} />
               ))}
             </div>
           </div>
@@ -225,7 +229,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
                 style={locked ? undefined : { boxShadow: `0 10px 35px -14px hsl(${b.hue} 85% 60% / 0.4)` }}
               >
                 <span className="relative">
-                  <BadgeIcon badge={b} size={54} locked={locked} />
+                  <BadgeIcon badge={localizeBadge(b, locale)} size={54} locked={locked} />
                   {locked && (
                     <span className="absolute -bottom-1 -right-1 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-ink-700 text-[#8f8cb0]">
                       <Lock size={10} />
@@ -233,11 +237,11 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
                   )}
                 </span>
                 <div>
-                  <p className={`text-xs font-bold ${locked ? "text-[#6d6a8f]" : "text-white"}`}>{b.name}</p>
-                  <p className="mt-0.5 text-[0.65rem] leading-snug text-[#6d6a8f]">{b.desc}</p>
+                  <p className={`text-xs font-bold ${locked ? "text-[#6d6a8f]" : "text-white"}`}>{localizeBadge(b, locale).name}</p>
+                  <p className="mt-0.5 text-[0.65rem] leading-snug text-[#6d6a8f]">{localizeBadge(b, locale).desc}</p>
                   {earned && (
                     <p className="mt-1 text-[0.6rem] font-semibold text-mint-400/90">
-                      {new Date(earned.earnedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}
+                      {new Date(earned.earnedAt).toLocaleDateString(locale === "ar" ? "ar" : "en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}
                     </p>
                   )}
                   {prog2 && (
@@ -264,10 +268,10 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="glass-card p-5">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-bold text-white">
-            <Users size={15} className="text-neon-400" /> Squads
+            <Users size={15} className="text-neon-400" /> {text("profile.squads")}
           </h2>
           {squads.length === 0 ? (
-            <p className="py-4 text-center text-xs text-[#6d6a8f]">Not in any squad yet.</p>
+            <p className="py-4 text-center text-xs text-[#6d6a8f]">{text("profile.noSquads")}</p>
           ) : (
             <ul className="space-y-2">
               {squads.map((s) => (
@@ -287,10 +291,10 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
 
         <div className="glass-card p-5 lg:col-span-2">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-bold text-white">
-            <History size={15} className="text-brand-300" /> Recent rounds
+            <History size={15} className="text-brand-300" /> {text("profile.recentRounds")}
           </h2>
           {recentSessions.length === 0 ? (
-            <p className="py-4 text-center text-xs text-[#6d6a8f]">No focus sessions yet.</p>
+            <p className="py-4 text-center text-xs text-[#6d6a8f]">{text("profile.noRounds")}</p>
           ) : (
             <ul className="grid gap-2 sm:grid-cols-2">
               {recentSessions.map((s) => (
@@ -298,10 +302,10 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
                   <div className="min-w-0">
                     <p className="flex items-center gap-1.5 truncate text-sm text-[#d9d7ec]">
                       {s.roomId ? <UsersRound size={12} className="shrink-0 text-neon-400" /> : null}
-                      {s.taskTitle ?? (s.roomId ? "Group room round" : "Free focus")}
+                      {s.taskTitle ?? (s.roomId ? text("profile.groupRounds") : text("dashboard.freeFocus"))}
                     </p>
                     <p className="text-[0.65rem] text-[#6d6a8f]">
-                      {new Date(s.startedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+                      {new Date(s.startedAt).toLocaleDateString(locale === "ar" ? "ar" : "en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
                     </p>
                   </div>
                   <span className="tnum shrink-0 rounded-md bg-brand-500/12 px-2 py-1 text-xs font-bold text-brand-300">

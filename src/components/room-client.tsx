@@ -352,7 +352,7 @@ export function RoomClient({
                           {m.displayName}
                           {m.id === meId && <span className="text-[0.65rem] text-brand-300">{ar ? "(أنت)" : "(you)"}</span>}
                           {m.isHost && <Crown size={12} className="shrink-0 text-gold-400" />}
-                          {m.role === "admin" && <AdminChip small />}
+                          {m.role === "admin" && <AdminChip small locale={ar ? "ar" : "en"} />}
                         </p>
                         <p className="flex items-center gap-1 text-[0.65rem] text-[#6d6a8f]">
                           @{m.username}

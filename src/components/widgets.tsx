@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import type { BadgeDef } from "@/lib/xp";
 import { PERK_CATALOG, perkColor } from "@/lib/perks";
+import type { Locale } from "@/lib/i18n";
 
 /* ------------------------------ Avatar ------------------------------ */
 
@@ -47,11 +48,13 @@ export function Avatar({
   );
 }
 
-export function PerkTitleBadge({ rewardKey }: { rewardKey: string | null }) {
+const TITLE_AR: Record<string, string> = { "focus-beast": "وحش التركيز", "deep-work-master": "سيد العمل العميق", "arena-veteran": "مخضرم الساحة", "night-owl": "بومة الليل", "task-alchemist": "كيميائي المهام", "flow-state": "حالة التدفق", "zero-noise": "بلا ضجيج", "legendary-focus": "تركيز أسطوري", "silence-architect": "مهندس الصمت", "momentum-engine": "محرك الزخم", "midnight-oracle": "عرّاف منتصف الليل", "precision-ace": "خبير الدقة", "calm-commander": "قائد الهدوء", "flow-architect": "مهندس التدفق", "quest-closer": "منجز المهام", "focus-ascendant": "متصاعد التركيز" };
+
+export function PerkTitleBadge({ rewardKey, locale = "en" }: { rewardKey: string | null; locale?: Locale }) {
   if (!rewardKey) return null;
   const reward = PERK_CATALOG.find((item) => item.key === rewardKey && item.category === "title");
   if (!reward) return null;
-  return <span className="chip !border-neon-400/30 !bg-neon-400/8 !px-2 !py-0.5 !text-[0.62rem] !text-neon-300">{reward.name}</span>;
+  return <span className="chip !border-neon-400/30 !bg-neon-400/8 !px-2 !py-0.5 !text-[0.62rem] !text-neon-300">{locale === "ar" ? TITLE_AR[reward.key] ?? reward.name : reward.name}</span>;
 }
 
 const COSMETIC_ICONS: Record<string, LucideIcon> = { zap: Zap, flame: Flame, brain: Brain, moon: Moon, sun: Sun, target: Target, gem: Gem, leaf: Leaf, star: Star, atom: Atom, shield: ShieldCheck, sparkles: Star, crown: Crown, rocket: Rocket, waves: Layers, heart: Award, snowflake: Moon, comet: Rocket, orbit: Atom, flower: Leaf, wolf: Flame, eclipse: Moon };
@@ -75,7 +78,7 @@ export function StyledDisplayName({ name, colorKey, iconKey, logoKey, className 
 
 /* ---------------------------- Level chip ---------------------------- */
 
-export function LevelChip({ level, small = false }: { level: number; small?: boolean }) {
+export function LevelChip({ level, small = false, locale = "en" }: { level: number; small?: boolean; locale?: Locale }) {
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full border border-brand-500/35 bg-brand-500/12 font-semibold text-brand-300 ${
@@ -83,7 +86,7 @@ export function LevelChip({ level, small = false }: { level: number; small?: boo
       }`}
     >
       <Zap size={small ? 10 : 12} strokeWidth={2.5} />
-      LVL {level}
+      {locale === "ar" ? "مستوى" : "LVL"} {level}
     </span>
   );
 }
@@ -122,7 +125,7 @@ export function StatCard({
 
 /* ---------------------------- Week chart ---------------------------- */
 
-export function WeekChart({ data }: { data: { label: string; minutes: number; isToday: boolean }[] }) {
+export function WeekChart({ data, locale = "en" }: { data: { label: string; minutes: number; isToday: boolean }[]; locale?: Locale }) {
   const max = Math.max(60, ...data.map((d) => d.minutes));
   return (
     <div className="flex h-44 items-end gap-2.5 sm:gap-3.5">
@@ -131,7 +134,7 @@ export function WeekChart({ data }: { data: { label: string; minutes: number; is
         return (
           <div key={d.label} className="group flex h-full flex-1 flex-col items-center justify-end gap-2">
             <span className="tnum text-[0.68rem] font-medium text-[#8f8cb0] opacity-0 transition-opacity group-hover:opacity-100">
-              {d.minutes}m
+              {d.minutes}{locale === "ar" ? " د" : "m"}
             </span>
             <div
               className={`w-full max-w-10 rounded-t-lg rounded-b-sm transition-all duration-500 ${
@@ -165,16 +168,16 @@ const BADGE_ICONS: Record<string, LucideIcon> = {
 
 /* ---------------------------- Admin chip ---------------------------- */
 
-export function AdminChip({ small = false }: { small?: boolean }) {
+export function AdminChip({ small = false, locale = "en" }: { small?: boolean; locale?: Locale }) {
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full border border-gold-400/50 bg-gold-400/12 font-black uppercase tracking-wider text-gold-400 ${
         small ? "px-1.5 py-0 text-[0.58rem]" : "px-2.5 py-0.5 text-[0.65rem]"
       }`}
-      title="Project admin"
+      title={locale === "ar" ? "مشرف المشروع" : "Project admin"}
     >
       <ShieldCheck size={small ? 9 : 11} strokeWidth={2.5} />
-      Admin
+      {locale === "ar" ? "مشرف" : "Admin"}
     </span>
   );
 }

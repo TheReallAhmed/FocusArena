@@ -99,7 +99,7 @@ export function Sidebar({ user }: { user: User }) {
                 <CosmeticMark rewardKey={user.equippedLogo} size={12}/>
               </p>
               <div className="mt-0.5 flex items-center gap-1.5">
-                {isAdmin ? <AdminChip small /> : <LevelChip level={level} small />}
+                {isAdmin ? <AdminChip small locale={locale} /> : <LevelChip level={level} small locale={locale} />}
                 <span className="tnum text-[0.65rem] text-[#6d6a8f]">{user.xp} XP</span>
               </div>
             </div>
@@ -113,7 +113,7 @@ export function Sidebar({ user }: { user: User }) {
         <div className="flex items-center justify-between px-4 py-3">
           <Link href="/"><Logo size={28} /></Link>
           <div className="flex items-center gap-2.5">
-            {isAdmin ? <AdminChip small /> : <LevelChip level={level} small />}
+            {isAdmin ? <AdminChip small locale={locale} /> : <LevelChip level={level} small locale={locale} />}
             <Link href={`/u/${user.username}`}>
               <Avatar name={user.displayName} hue={user.avatarHue} imageUrl={user.avatarUrl} frameKey={user.equippedFrame} size={30} />
             </Link>

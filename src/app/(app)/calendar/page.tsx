@@ -89,9 +89,9 @@ export default async function CalendarPage({
       {/* Month stats */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {[
-          { icon: Sigma, label: ar ? "الإجمالي" : "Total", value: fmtMinutes(data.monthTotal), hue: 255 },
+          { icon: Sigma, label: ar ? "الإجمالي" : "Total", value: fmtMinutes(data.monthTotal, ar ? "ar" : "en"), hue: 255 },
           { icon: CalendarCheck, label: ar ? "أيام نشطة" : "Active days", value: String(data.activeDays), hue: 160 },
-          { icon: TrendingUp, label: ar ? "أفضل يوم" : "Best day", value: data.bestDay ? fmtMinutes(data.bestDay.minutes) : "—", hue: 190 },
+          { icon: TrendingUp, label: ar ? "أفضل يوم" : "Best day", value: data.bestDay ? fmtMinutes(data.bestDay.minutes, ar ? "ar" : "en") : "—", hue: 190 },
           { icon: Flame, label: ar ? "السلسلة" : "Streak", value: `${user.streak}${ar ? " ي" : "d"}`, hue: 35 },
         ].map((s) => (
           <div key={s.label} className="glass-card flex items-center gap-3.5 p-4">
@@ -129,7 +129,7 @@ export default async function CalendarPage({
             return (
               <div
                 key={cell.key}
-                title={`${cell.key} — ${minutes > 0 ? `${fmtMinutes(minutes)} · ${info?.sessions} ${ar ? "جلسة" : `session${(info?.sessions ?? 0) > 1 ? "s" : ""}`}` : ar ? "لا يوجد تركيز" : "no focus"}`}
+                title={`${cell.key} — ${minutes > 0 ? `${fmtMinutes(minutes, ar ? "ar" : "en")} · ${info?.sessions} ${ar ? "جلسة" : `session${(info?.sessions ?? 0) > 1 ? "s" : ""}`}` : ar ? "لا يوجد تركيز" : "no focus"}`}
                 className={`relative flex aspect-square items-center justify-center rounded-lg border text-xs font-semibold transition-transform hover:scale-105 sm:rounded-xl ${CELL[level]} ${
                   isToday ? "border-white/50" : "border-white/[0.05]"
                 } ${inStreak ? "shadow-[0_0_16px_-2px_rgba(251,191,36,0.5)]" : ""}`}
@@ -167,7 +167,7 @@ export default async function CalendarPage({
             <div className="mt-4 flex h-28 items-end gap-2">
               {insights.weekdayAvg.map((w) => (
                 <div key={w.label} className="group flex h-full flex-1 flex-col items-center justify-end gap-1.5">
-                  <span className="tnum text-[0.6rem] text-[#8f8cb0] opacity-0 transition-opacity group-hover:opacity-100">{w.avg}m</span>
+                  <span className="tnum text-[0.6rem] text-[#8f8cb0] opacity-0 transition-opacity group-hover:opacity-100">{fmtMinutes(w.avg, ar ? "ar" : "en")}</span>
                   <div
                     className="w-full rounded-t-md bg-gradient-to-t from-[#23234a] to-brand-500/70 transition-all group-hover:to-brand-500"
                     style={{ height: `${Math.max(4, (w.avg / maxWeekday) * 100)}%` }}
@@ -191,12 +191,12 @@ export default async function CalendarPage({
               </div>
               <div className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-line bg-white/[0.02] p-3 text-center">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500/14 text-brand-300"><Zap size={15} /></span>
-                <p className="tnum text-sm font-bold text-white">{insights.longestSession ? fmtMinutes(insights.longestSession) : "—"}</p>
+                <p className="tnum text-sm font-bold text-white">{insights.longestSession ? fmtMinutes(insights.longestSession, ar ? "ar" : "en") : "—"}</p>
                 <p className="text-[0.6rem] font-semibold uppercase tracking-wider text-[#6d6a8f]">{ar ? "أطول جولة" : "Longest round"}</p>
               </div>
               <div className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-line bg-white/[0.02] p-3 text-center">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-mint-400/12 text-mint-400"><TrendingUp size={15} /></span>
-                <p className="tnum text-sm font-bold text-white">{insights.avgPerActiveDay ? fmtMinutes(insights.avgPerActiveDay) : "—"}</p>
+                <p className="tnum text-sm font-bold text-white">{insights.avgPerActiveDay ? fmtMinutes(insights.avgPerActiveDay, ar ? "ar" : "en") : "—"}</p>
                 <p className="text-[0.6rem] font-semibold uppercase tracking-wider text-[#6d6a8f]">{ar ? "المتوسط / يوم نشط" : "Avg / active day"}</p>
               </div>
               <div className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-line bg-white/[0.02] p-3 text-center">
@@ -215,7 +215,7 @@ export default async function CalendarPage({
               {insights.weeklyTotals.map((w, i) => (
                 <div key={i} className="group flex h-full flex-1 flex-col items-center justify-end gap-1.5">
                   <span className="tnum text-[0.6rem] text-[#8f8cb0] opacity-0 transition-opacity group-hover:opacity-100">
-                    {fmtMinutes(w.minutes)}
+                    {fmtMinutes(w.minutes, ar ? "ar" : "en")}
                   </span>
                   <div
                     className={`w-full rounded-t-md transition-all ${

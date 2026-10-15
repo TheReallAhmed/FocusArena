@@ -1,5 +1,8 @@
+"use client";
+
 import { Flame } from "lucide-react";
 import { fmtMinutes } from "@/lib/dates";
+import { useLocale } from "@/components/locale-provider";
 
 type Cell = { day: string; minutes: number };
 
@@ -26,7 +29,10 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
  * Columns = weeks (Mon→Sun top to bottom).
  */
 export function ContributionGrid({ data }: { data: Cell[] }) {
+  const { locale } = useLocale();
   if (data.length === 0) return null;
+  const months = locale === "ar" ? ["ينا", "فبر", "مار", "أبر", "ماي", "يون", "يول", "أغس", "سبت", "أكت", "نوف", "ديس"] : MONTHS;
+  const weekdays = locale === "ar" ? ["اثن", "", "أرب", "", "جمع", "", "أحد"] : ["Mon", "", "Wed", "", "Fri", "", "Sun"];
 
   // pad the start so the first column begins on a Monday
   const firstDow = (new Date(data[0].day + "T00:00:00Z").getUTCDay() + 6) % 7;
@@ -46,7 +52,7 @@ export function ContributionGrid({ data }: { data: Cell[] }) {
     const d = new Date(first.day + "T00:00:00Z");
     const prev = i > 0 ? weeks[i - 1].find((c) => c !== null) : null;
     const prevMonth = prev ? new Date(prev.day + "T00:00:00Z").getUTCMonth() : -1;
-    return d.getUTCMonth() !== prevMonth ? MONTHS[d.getUTCMonth()] : null;
+    return d.getUTCMonth() !== prevMonth ? months[d.getUTCMonth()] : null;
   });
 
   return (
@@ -54,19 +60,19 @@ export function ContributionGrid({ data }: { data: Cell[] }) {
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="flex items-center gap-2 text-base font-bold text-white">
-            <Flame size={16} className="text-brand-300" /> Focus contributions
+            <Flame size={16} className="text-brand-300" /> {locale === "ar" ? "مساهمات التركيز" : "Focus contributions"}
           </h2>
           <p className="mt-1 text-xs text-[#8f8cb0]">
-            <span className="tnum font-semibold text-white">{fmtMinutes(total)}</span> of deep work across{" "}
-            <span className="tnum font-semibold text-white">{activeDays}</span> active days · last 26 weeks
+            <span className="tnum font-semibold text-white">{fmtMinutes(total, locale)}</span> {locale === "ar" ? "من العمل العميق خلال" : "of deep work across"}{" "}
+            <span className="tnum font-semibold text-white">{activeDays}</span> {locale === "ar" ? "يوم نشاط · آخر 26 أسبوعًا" : "active days · last 26 weeks"}
           </p>
         </div>
         <div className="flex items-center gap-2 text-[0.65rem] font-medium text-[#6d6a8f]">
-          Less
+          {locale === "ar" ? "أقل" : "Less"}
           {LEVELS.map((c, i) => (
             <span key={i} className={`h-3 w-3 rounded-[3px] border border-white/[0.06] ${c}`} />
           ))}
-          More
+          {locale === "ar" ? "أكثر" : "More"}
         </div>
       </div>
 
@@ -83,7 +89,7 @@ export function ContributionGrid({ data }: { data: Cell[] }) {
           <div className="flex gap-[3px]">
             {/* weekday labels */}
             <div className="mr-1 flex w-[22px] flex-col gap-[3px]">
-              {["Mon", "", "Wed", "", "Fri", "", "Sun"].map((d, i) => (
+              {weekdays.map((d, i) => (
                 <span key={i} className="h-[13px] text-[0.55rem] leading-[13px] text-[#5c5a78]">
                   {d}
                 </span>
@@ -99,7 +105,7 @@ export function ContributionGrid({ data }: { data: Cell[] }) {
                     <span
                       key={di}
                       className={`h-[13px] w-[13px] rounded-[3px] border border-white/[0.05] transition-transform hover:scale-125 ${LEVELS[lvl]}`}
-                      title={`${cell.day} — ${cell.minutes > 0 ? fmtMinutes(cell.minutes) : "no focus"}`}
+                      title={`${cell.day} — ${cell.minutes > 0 ? fmtMinutes(cell.minutes, locale) : locale === "ar" ? "لا تركيز" : "no focus"}`}
                     />
                   );
                 })}
@@ -111,10 +117,10 @@ export function ContributionGrid({ data }: { data: Cell[] }) {
 
       <div className="mt-4 flex flex-wrap gap-4 border-t border-line pt-4 text-xs">
         <span className="text-[#8f8cb0]">
-          Best day <span className="tnum font-bold text-white">{best > 0 ? fmtMinutes(best) : "—"}</span>
+          {locale === "ar" ? "أفضل يوم" : "Best day"} <span className="tnum font-bold text-white">{best > 0 ? fmtMinutes(best, locale) : "—"}</span>
         </span>
         <span className="text-[#8f8cb0]">
-          Consistency{" "}
+          {locale === "ar" ? "الاستمرارية" : "Consistency"}{" "}
           <span className="tnum font-bold text-white">
             {Math.round((activeDays / data.length) * 100)}%
           </span>

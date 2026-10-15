@@ -6,6 +6,7 @@ import { getAdminData } from "@/server/queries";
 import { Avatar } from "@/components/widgets";
 import { AdminUsersTable } from "@/components/admin-users";
 import { fmtMinutes } from "@/lib/dates";
+import { normalizeLocale, t } from "@/lib/i18n";
 
 export const metadata: Metadata = { title: "Admin" };
 export const dynamic = "force-dynamic";
@@ -14,6 +15,8 @@ export default async function AdminPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
   if (user.role !== "admin") redirect("/dashboard");
+  const locale = normalizeLocale(user.locale);
+  const text = (key: string, values?: Record<string, string | number>) => t(locale, key, values);
 
   const data = await getAdminData();
 
@@ -21,25 +24,25 @@ export default async function AdminPage() {
     <div className="space-y-5">
       <div>
         <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-gold-400">
-          <ShieldCheck size={14} /> Commander Zone
+          <ShieldCheck size={14} /> {text("admin.commander")}
         </p>
         <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-white sm:text-3xl">
-          Admin <span className="text-gradient">console</span>
+          {text("admin.console")}
         </h1>
         <p className="mt-1.5 text-sm text-[#8f8cb0]">
-          Welcome back, {user.displayName}. The arena is yours.
+          {text("admin.welcome", { name: user.displayName })}
         </p>
       </div>
 
       {/* Totals */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-6">
         {[
-          { icon: Users, label: "Players", value: String(data.totals.users), hue: 190 },
-          { icon: Clock3, label: "All sessions", value: String(data.totals.sessions), hue: 255 },
-          { icon: Zap, label: "Minutes focused", value: fmtMinutes(data.totals.minutes), hue: 45 },
-          { icon: History, label: "Sessions today", value: String(data.totals.sessionsToday), hue: 160 },
-          { icon: Radio, label: "Live rooms", value: String(data.totals.activeRooms), hue: 350 },
-          { icon: Medal, label: "Badges awarded", value: String(data.totals.badgesGiven), hue: 280 },
+          { icon: Users, label: text("admin.players"), value: String(data.totals.users), hue: 190 },
+          { icon: Clock3, label: text("admin.sessions"), value: String(data.totals.sessions), hue: 255 },
+          { icon: Zap, label: text("admin.minutes"), value: fmtMinutes(data.totals.minutes, locale), hue: 45 },
+          { icon: History, label: text("admin.sessionsToday"), value: String(data.totals.sessionsToday), hue: 160 },
+          { icon: Radio, label: text("admin.liveRooms"), value: String(data.totals.activeRooms), hue: 350 },
+          { icon: Medal, label: text("admin.badges"), value: String(data.totals.badgesGiven), hue: 280 },
         ].map((s) => (
           <div key={s.label} className="glass-card p-4">
             <span
@@ -58,9 +61,9 @@ export default async function AdminPage() {
       <div className="glass-card overflow-hidden">
         <div className="flex items-center justify-between border-b border-line px-5 py-4">
           <h2 className="flex items-center gap-2 text-sm font-bold text-white">
-            <Users size={15} className="text-brand-300" /> Players management
+            <Users size={15} className="text-brand-300" /> {text("admin.management")}
           </h2>
-          <span className="tnum text-xs text-[#8f8cb0]">{data.users.length} shown</span>
+          <span className="tnum text-xs text-[#8f8cb0]">{text("admin.shown", { count: data.users.length })}</span>
         </div>
         <AdminUsersTable users={data.users} meId={user.id} />
       </div>
@@ -68,10 +71,10 @@ export default async function AdminPage() {
       {/* Recent activity */}
       <div className="glass-card p-5">
         <h2 className="mb-3 flex items-center gap-2 text-sm font-bold text-white">
-          <History size={15} className="text-neon-400" /> Latest arena activity
+          <History size={15} className="text-neon-400" /> {text("admin.latest")}
         </h2>
         {data.recent.length === 0 ? (
-          <p className="py-4 text-center text-xs text-[#6d6a8f]">No focus sessions logged yet.</p>
+          <p className="py-4 text-center text-xs text-[#6d6a8f]">{text("admin.noSessions")}</p>
         ) : (
           <ul className="grid gap-2 sm:grid-cols-2">
             {data.recent.map((r) => (
@@ -80,9 +83,9 @@ export default async function AdminPage() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm text-[#d9d7ec]">{r.userName}</p>
                   <p className="text-[0.65rem] text-[#6d6a8f]">
-                    {new Date(r.startedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+                    {new Date(r.startedAt).toLocaleDateString(locale === "ar" ? "ar" : "en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
                     {" · "}
-                    {new Date(r.startedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })}
+                    {new Date(r.startedAt).toLocaleTimeString(locale === "ar" ? "ar" : "en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })}
                   </p>
                 </div>
                 <span className="tnum shrink-0 rounded-md bg-mint-400/12 px-2 py-1 text-xs font-bold text-mint-400">

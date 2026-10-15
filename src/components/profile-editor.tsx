@@ -14,9 +14,9 @@ import type { User } from "@/db/schema";
 const MAX_SOURCE_BYTES = 10 * 1024 * 1024;
 const AVATAR_SIZE = 320;
 
-async function compressAvatar(file: File): Promise<string> {
-  if (!file.type.startsWith("image/")) throw new Error("Choose a JPG, PNG or WebP image.");
-  if (file.size > MAX_SOURCE_BYTES) throw new Error("The original image must be under 10 MB.");
+async function compressAvatar(file: File, locale: "en" | "ar"): Promise<string> {
+  if (!file.type.startsWith("image/")) throw new Error(locale === "ar" ? "اختر صورة بصيغة JPG أو PNG أو WebP." : "Choose a JPG, PNG or WebP image.");
+  if (file.size > MAX_SOURCE_BYTES) throw new Error(locale === "ar" ? "يجب ألا يتجاوز حجم الصورة الأصلية 10 ميغابايت." : "The original image must be under 10 MB.");
 
   const bitmap = await createImageBitmap(file);
   const side = Math.min(bitmap.width, bitmap.height);
@@ -26,7 +26,7 @@ async function compressAvatar(file: File): Promise<string> {
   canvas.width = AVATAR_SIZE;
   canvas.height = AVATAR_SIZE;
   const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Your browser could not process the photo.");
+  if (!ctx) throw new Error(locale === "ar" ? "تعذر على المتصفح معالجة الصورة." : "Your browser could not process the photo.");
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
   ctx.drawImage(bitmap, sx, sy, side, side, 0, 0, AVATAR_SIZE, AVATAR_SIZE);
@@ -57,7 +57,7 @@ function Field({
 }
 
 export function ProfileEditor({ user }: { user: User }) {
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
   const [state, action, pending] = useActionState<ProfileState, FormData>(updateProfileAction, {});
   const [avatar, setAvatar] = useState<string | null>(user.avatarUrl);
   const [avatarMode, setAvatarMode] = useState<"keep" | "replace" | "remove">("keep");
@@ -71,11 +71,11 @@ export function ProfileEditor({ user }: { user: User }) {
     setImageError(null);
     setProcessing(true);
     try {
-      const data = await compressAvatar(file);
+      const data = await compressAvatar(file, locale);
       setAvatar(data);
       setAvatarMode("replace");
     } catch (error) {
-      setImageError(error instanceof Error ? error.message : "Could not process this image.");
+      setImageError(error instanceof Error ? error.message : locale === "ar" ? "تعذرت معالجة هذه الصورة." : "Could not process this image.");
     } finally {
       setProcessing(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -108,7 +108,7 @@ export function ProfileEditor({ user }: { user: User }) {
               onClick={() => fileRef.current?.click()}
               disabled={processing}
               className="absolute bottom-1 right-1 flex h-10 w-10 items-center justify-center rounded-full border-2 border-ink-900 bg-brand-500 text-white shadow-lg transition hover:scale-105 hover:bg-brand-400"
-              title="Choose photo"
+              title={t("profile.changePhoto")}
             >
               {processing ? <LoaderCircle size={17} className="animate-spin" /> : <Camera size={17} />}
             </button>
@@ -122,7 +122,7 @@ export function ProfileEditor({ user }: { user: User }) {
           />
 
           <h2 className="mt-5 text-lg font-bold text-white"><StyledDisplayName name={user.displayName} colorKey={user.equippedColor} iconKey={user.equippedIcon} logoKey={user.equippedLogo} /></h2>
-          <div className="mt-1"><PerkTitleBadge rewardKey={user.equippedTitle} /></div>
+          <div className="mt-1"><PerkTitleBadge rewardKey={user.equippedTitle} locale={locale} /></div>
           <p className="text-xs text-[#6d6a8f]">@{user.username}</p>
 
           <div className="mt-5 flex flex-wrap justify-center gap-2.5">

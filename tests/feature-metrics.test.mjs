@@ -78,10 +78,13 @@ test("optional proof-of-work statuses are bounded and do not treat missed checks
 
 test("cosmetic XP catalog has unique safe prices across every shop category", () => {
   const keys = PERK_CATALOG.map((perk) => perk.key);
-  assert.equal(PERK_CATALOG.length, 38);
+  assert.equal(PERK_CATALOG.length, 80);
   assert.equal(new Set(keys).size, keys.length);
   assert.ok(PERK_CATALOG.every((perk) => perk.price > 0 && Number.isInteger(perk.price)));
   assert.deepEqual(new Set(PERK_CATALOG.map((perk) => perk.category)), new Set(["title", "frame", "logo", "color", "icon"]));
+  for (const category of ["title", "frame", "logo", "color", "icon"]) {
+    assert.ok(PERK_CATALOG.filter((perk) => perk.category === category).length >= 14, `${category} should have a substantial selection`);
+  }
   assert.equal(perkByKey("comet-logo")?.category, "logo");
   assert.equal(perkColor("mint-name"), "#4ade9e");
   assert.equal(perkByKey("not-a-real-item"), undefined);

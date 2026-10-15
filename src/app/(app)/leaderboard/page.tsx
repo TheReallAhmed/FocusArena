@@ -45,7 +45,7 @@ export default async function LeaderboardPage({
   const myRank = rows.findIndex((r) => r.id === user.id);
 
   const metric = (r: (typeof rows)[number]) =>
-    tab === "streak" ? `${r.streak}d` : fmtMinutes(Number(r.minutes));
+    tab === "streak" ? `${r.streak}${locale === "ar" ? " يوم" : "d"}` : fmtMinutes(Number(r.minutes), locale);
 
   return (
     <div className="space-y-5">
@@ -76,8 +76,8 @@ export default async function LeaderboardPage({
           <Sparkles size={16} className="shrink-0 text-brand-300" />
           <p className="text-sm text-[#c7c4de]">
             {locale === "ar" ? "ترتيبك" : "You are"} <span className="tnum font-bold text-white">#{myRank + 1}</span>{" "}
-            {tab === "week" ? "this week" : tab === "all" ? "of all time" : "on the streak board"}
-            {myRank === 0 ? " — defend the throne." : myRank === 1 ? " — one spot from glory." : " — keep climbing."}
+            {locale === "ar" ? tab === "week" ? "هذا الأسبوع" : tab === "all" ? "على الإطلاق" : "في ترتيب السلاسل" : tab === "week" ? "this week" : tab === "all" ? "of all time" : "on the streak board"}
+            {locale === "ar" ? (myRank === 0 ? " — دافع عن الصدارة." : myRank === 1 ? " — بقيت خطوة للمجد." : " — واصل الصعود.") : (myRank === 0 ? " — defend the throne." : myRank === 1 ? " — one spot from glory." : " — keep climbing.")}
           </p>
         </div>
       )}
@@ -120,10 +120,10 @@ export default async function LeaderboardPage({
                   <div className="mt-1 min-w-0 max-w-full">
                     <p className="flex items-center justify-center gap-1.5 truncate text-sm font-bold text-white">
                       <StyledDisplayName name={r.displayName} colorKey={r.equippedColor} iconKey={r.equippedIcon} logoKey={r.equippedLogo} />
-                      {r.role === "admin" && <AdminChip small />}
-                      {r.accountabilityActive && <span title="Temporary, self-reported indicator — expires within 24 hours" className="chip !border-rose-400/30 !bg-rose-400/8 !px-1.5 !py-0 !text-[0.55rem] !text-rose-300">24h accountability</span>}
+                      {r.role === "admin" && <AdminChip small locale={locale} />}
+                      {r.accountabilityActive && <span title={locale === "ar" ? "إشارة محاسبة مؤقتة ذاتية الإفادة — تنتهي خلال 24 ساعة" : "Temporary, self-reported indicator — expires within 24 hours"} className="chip !border-rose-400/30 !bg-rose-400/8 !px-1.5 !py-0 !text-[0.55rem] !text-rose-300">{locale === "ar" ? "محاسبة 24س" : "24h accountability"}</span>}
                     </p>
-                    <PerkTitleBadge rewardKey={r.equippedTitle} />
+                    <PerkTitleBadge rewardKey={r.equippedTitle} locale={locale} />
                     <p className="text-[0.68rem] text-[#6d6a8f]">
                       @{r.username} {r.id === user.id && <span className="text-brand-300">{text("leaderboard.you")}</span>}
                     </p>
@@ -138,10 +138,10 @@ export default async function LeaderboardPage({
                     )}
                   </div>
                   <div className="mt-1 flex flex-wrap items-center justify-center gap-1.5">
-                    <BadgeRail keys={r.badgeKeys} total={r.badges} max={isFirst ? 3 : 2} size={isFirst ? 22 : 19} />
+                    <BadgeRail keys={r.badgeKeys} total={r.badges} max={isFirst ? 3 : 2} size={isFirst ? 22 : 19} locale={locale} />
                   </div>
                   <span className="tnum text-[0.6rem] font-semibold text-[#6d6a8f]">
-                    {r.badges}/{BADGES.length} badges · {badgeScore(r.badgeKeys)} pts
+                    {r.badges}/{BADGES.length} {locale === "ar" ? "شارة" : "badges"} · {badgeScore(r.badgeKeys)} {locale === "ar" ? "نقطة ندرة" : "pts"}
                   </span>
                 </Link>
               );
@@ -168,14 +168,14 @@ export default async function LeaderboardPage({
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-white">
                     <StyledDisplayName name={r.displayName} colorKey={r.equippedColor} iconKey={r.equippedIcon} logoKey={r.equippedLogo} />
-                    {r.role === "admin" && <AdminChip small />}
-                    {r.accountabilityActive && <span title="Temporary, self-reported indicator — expires within 24 hours" className="chip !border-rose-400/30 !bg-rose-400/8 !px-1.5 !py-0 !text-[0.55rem] !text-rose-300">24h</span>}
+                    {r.role === "admin" && <AdminChip small locale={locale} />}
+                    {r.accountabilityActive && <span title={locale === "ar" ? "إشارة محاسبة مؤقتة ذاتية الإفادة — تنتهي خلال 24 ساعة" : "Temporary, self-reported indicator — expires within 24 hours"} className="chip !border-rose-400/30 !bg-rose-400/8 !px-1.5 !py-0 !text-[0.55rem] !text-rose-300">24h</span>}
                     {r.id === user.id && <span className="text-xs font-bold text-brand-300">{text("leaderboard.you")}</span>}
                   </p>
-                  <div className="mt-0.5 flex items-center gap-1.5"><span className="text-[0.68rem] text-[#6d6a8f]">@{r.username}</span><PerkTitleBadge rewardKey={r.equippedTitle} /></div>
+                  <div className="mt-0.5 flex items-center gap-1.5"><span className="text-[0.68rem] text-[#6d6a8f]">@{r.username}</span><PerkTitleBadge rewardKey={r.equippedTitle} locale={locale} /></div>
                 </div>
                 <div className="hidden items-center gap-1.5 sm:flex">
-                  <LevelChip level={levelMap.get(r.id) ?? 1} small />
+                  <LevelChip level={levelMap.get(r.id) ?? 1} small locale={locale} />
                   {r.streak > 0 && (
                     <span className="chip !px-1.5 !py-0 !text-[0.62rem] !font-bold text-gold-400">
                       <Flame size={10} /> {r.streak}
@@ -183,7 +183,7 @@ export default async function LeaderboardPage({
                   )}
                 </div>
                 <div className="hidden max-w-[22rem] items-center justify-end md:flex">
-                  <BadgeRail keys={r.badgeKeys} total={r.badges} max={2} size={19} />
+                  <BadgeRail keys={r.badgeKeys} total={r.badges} max={2} size={19} locale={locale} />
                 </div>
                 <span className="tnum w-16 shrink-0 text-right text-sm font-bold text-white">{metric(r)}</span>
               </Link>
@@ -191,26 +191,26 @@ export default async function LeaderboardPage({
           </div>
 
           <p className="flex items-center justify-center gap-2 text-xs text-[#5c5a78]">
-            <Medal size={13} /> Weekly resets every Monday · Streaks board ranks longest active streaks.
+            <Medal size={13} /> {locale === "ar" ? "يُعاد ضبط الترتيب الأسبوعي كل اثنين · وترتيب السلاسل حسب أطول سلسلة نشطة." : "Weekly resets every Monday · Streaks board ranks longest active streaks."}
           </p>
         </>
       )}
 
       <section className="glass-card overflow-hidden">
         <div className="border-b border-line p-5">
-          <h2 className="text-sm font-bold text-white">Focus quality · separate metric</h2>
-          <p className="mt-1 text-xs text-[#6d6a8f]">Average self-reported quality across at least 5 completed, tracked focus rounds. This does not alter the XP/time rankings above.</p>
+          <h2 className="text-sm font-bold text-white">{text("leaderboard.focusQuality")}</h2>
+          <p className="mt-1 text-xs text-[#6d6a8f]">{locale === "ar" ? "متوسط جودة التركيز المبلّغ عنها ذاتيًا عبر خمس جولات مكتملة ومتتبعة على الأقل. لا يؤثر هذا المقياس في ترتيب XP أو الوقت أعلاه." : "Average self-reported quality across at least 5 completed, tracked focus rounds. This does not alter the XP/time rankings above."}</p>
         </div>
-        {qualityRows.length === 0 ? <p className="p-5 text-xs text-[#8f8cb0]">No player has 5 scored focus rounds yet.</p> : qualityRows.map((row, index) => (
+        {qualityRows.length === 0 ? <p className="p-5 text-xs text-[#8f8cb0]">{locale === "ar" ? "لم يسجل أي لاعب خمس جولات تركيز مقيمة بعد." : "No player has 5 scored focus rounds yet."}</p> : qualityRows.map((row, index) => (
           <Link key={row.id} href={`/u/${row.username}`} className="flex items-center gap-3 border-b border-line/70 px-5 py-3 last:border-0 hover:bg-white/[0.02]">
             <span className="tnum w-6 text-center text-xs font-bold text-[#6d6a8f]">{index + 1}</span>
             <Avatar name={row.displayName} hue={row.avatarHue} size={32} />
             <span className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{row.displayName} <span className="text-xs font-normal text-[#6d6a8f]">@{row.username}</span></span>
             <span className="tnum text-sm font-bold text-mint-400">{row.averageQuality}%</span>
-            <span className="text-[0.65rem] text-[#6d6a8f]">{row.scoredRounds} rounds</span>
+            <span className="text-[0.65rem] text-[#6d6a8f]">{row.scoredRounds} {text("leaderboard.rounds")}</span>
           </Link>
         ))}
-        <p className="px-5 py-3 text-[0.65rem] text-[#6d6a8f]">Quality formula v1: 100 − 12.5 points per user-logged distraction, rounded and clamped to 0–100. It cannot verify attention or unreported distractions.</p>
+        <p className="px-5 py-3 text-[0.65rem] text-[#6d6a8f]">{locale === "ar" ? "معادلة الجودة v1: ‏100 − 12.5 نقطة لكل مشتت يسجله المستخدم، مع التقريب والحصر بين 0 و100. لا تثبت الانتباه ولا تكشف المشتتات غير المسجلة." : "Quality formula v1: 100 − 12.5 points per user-logged distraction, rounded and clamped to 0–100. It cannot verify attention or unreported distractions."}</p>
       </section>
     </div>
   );

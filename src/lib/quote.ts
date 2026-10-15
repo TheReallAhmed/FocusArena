@@ -1,6 +1,7 @@
 /** Offline quote selection: no external service, API key, or network dependency. */
 
 export type Quote = { text: string; author: string };
+export type QuoteLocale = "en" | "ar";
 
 const FALLBACK: Quote[] = [
   { text: "Focus is the art of knowing what to ignore.", author: "James Clear" },
@@ -15,7 +16,20 @@ const FALLBACK: Quote[] = [
   { text: "What gets measured gets managed.", author: "Peter Drucker" },
 ];
 
-export async function getDailyQuote(): Promise<Quote> {
+const FALLBACK_AR: Quote[] = [
+  { text: "التركيز هو فن معرفة ما ينبغي تجاهله.", author: "James Clear" },
+  { text: "ليست المشكلة أن أعمارنا قصيرة، بل إننا نهدر الكثير منها.", author: "Seneca" },
+  { text: "المحارب الناجح إنسان عادي يملك تركيزًا كأشعة الليزر.", author: "Bruce Lee" },
+  { text: "اجمع أفكارك كلها على العمل الذي بين يديك؛ فأشعة الشمس لا تحرق حتى تُجمع في بؤرة.", author: "Alexander Graham Bell" },
+  { text: "لن تبلغ وجهتك إذا توقفت لترمي الحجارة على كل كلب ينبح.", author: "Winston Churchill" },
+  { text: "حيث يتجه التركيز، تتدفق الطاقة.", author: "Tony Robbins" },
+  { text: "المشكلة نقص الاتجاه لا نقص الوقت؛ فلدى الجميع أربع وعشرون ساعة.", author: "Zig Ziglar" },
+  { text: "أنجز المهام الصعبة أولًا، وستتكفل السهلة بنفسها.", author: "Dale Carnegie" },
+  { text: "البساطة هي قمة الإتقان.", author: "Leonardo da Vinci" },
+  { text: "ما يمكن قياسه يمكن إدارته.", author: "Peter Drucker" },
+];
+
+export async function getDailyQuote(locale: QuoteLocale = "en"): Promise<Quote> {
   const index = Math.floor(Math.random() * FALLBACK.length);
-  return FALLBACK[index] ?? FALLBACK[0];
+  return (locale === "ar" ? FALLBACK_AR[index] : FALLBACK[index]) ?? FALLBACK[0];
 }

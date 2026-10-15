@@ -12,7 +12,7 @@ import { useLocale } from "@/components/locale-provider";
 import { PERK_CATALOG, perkColor, type PerkCategory } from "@/lib/perks";
 import { equipPerkAction, purchasePerkAction } from "@/server/actions";
 
-const ICONS: Record<string, LucideIcon> = { sparkles: Sparkles, zap: Zap, flame: Flame, brain: Brain, moon: Moon, waves: Waves, shield: Shield, heart: Heart, snowflake: Snowflake, crown: Crown, comet: Rocket, orbit: Atom, flower: Sparkles, star: Star, wolf: Flame, eclipse: Moon, gem: Gem, leaf: Leaf };
+const ICONS: Record<string, LucideIcon> = { sparkles: Sparkles, zap: Zap, flame: Flame, brain: Brain, moon: Moon, waves: Waves, shield: Shield, heart: Heart, snowflake: Snowflake, crown: Crown, comet: Rocket, orbit: Atom, flower: Sparkles, star: Star, wolf: Flame, eclipse: Moon, gem: Gem, leaf: Leaf, target: Target };
 function ShopGlyph({ symbol, size = 18, style }: { symbol?: string; size?: number; style?: CSSProperties }) { const Icon = ICONS[symbol ?? ""] ?? Sparkles; return <Icon size={size} style={style} />; }
 const AR_NAMES: Record<string, string> = {
   "focus-beast": "وحش التركيز", "deep-work-master": "سيد العمل العميق", "arena-veteran": "مخضرم الساحة", "night-owl": "بومة الليل", "task-alchemist": "كيميائي المهام", "flow-state": "حالة التدفق", "zero-noise": "بلا ضجيج", "legendary-focus": "تركيز أسطوري",
@@ -20,6 +20,11 @@ const AR_NAMES: Record<string, string> = {
   "comet-logo": "شعار ذيل المذنب", "phoenix-logo": "شعار العنقاء", "orbit-logo": "شعار المدار", "titan-logo": "شعار العملاق", "lotus-logo": "زهرة اللوتس", "nova-logo": "شارة نوفا", "wolf-logo": "شعار الذئب", "eclipse-logo": "علامة الكسوف",
   "ruby-name": "إشارة الياقوت", "amber-name": "العنبر الشمسي", "mint-name": "دائرة النعناع", "ocean-name": "نبض المحيط", "violet-name": "شعاع البنفسج", "rose-name": "كوارتز وردي", "ice-name": "النهر الجليدي", "prism-name": "تحوّل المنشور",
   "crown-icon": "أيقونة التاج", "bolt-icon": "أيقونة البرق", "flame-icon": "أيقونة اللهب", "star-icon": "أيقونة النجمة", "gem-icon": "أيقونة الجوهرة", "moon-icon": "أيقونة القمر", "leaf-icon": "أيقونة الورقة", "shield-icon": "أيقونة الدرع",
+  "silence-architect": "مهندس الصمت", "momentum-engine": "محرك الزخم", "midnight-oracle": "عرّاف منتصف الليل", "precision-ace": "خبير الدقة", "calm-commander": "قائد الهدوء", "flow-architect": "مهندس التدفق", "quest-closer": "منجز المهام", "focus-ascendant": "متصاعد التركيز",
+  "nebula-frame": "إطار السديم", "solar-flare-frame": "وهج الشمس", "cyber-grid-frame": "شبكة سايبر", "moonlit-frame": "إطار ضوء القمر", "emerald-circuit-frame": "دائرة الزمرد", "crimson-comet-frame": "المذنب القرمزي", "prismatic-frame": "الهالة المنشورية", "void-frame": "هالة الفراغ", "frost-crown-frame": "تاج الصقيع", "royal-ember-frame": "الجمر الملكي",
+  "dragon-sigil": "ختم التنين", "lunar-compass": "البوصلة القمرية", "starforge-emblem": "شعار فرن النجوم", "abyssal-eye": "عين الهاوية", "aurora-knot": "عقدة الشفق", "storm-raven": "غراب العاصفة", "sapphire-crest": "شارة الياقوت الأزرق", "wildwood-mark": "علامة الغابة", "voidwalker-sigil": "ختم عابر الفراغ", "golden-suncrest": "قمة الشمس الذهبية",
+  "plasma-name": "وهج البلازما", "crimson-name": "الاندفاع القرمزي", "aurora-name": "نعناع الشفق", "cyber-lime-name": "ليموني سايبر", "sapphire-name": "نبض الياقوت", "cosmic-rose-name": "وردة كونية",
+  "orbit-icon": "أيقونة المدار", "brain-icon": "أيقونة العقل", "heart-icon": "أيقونة القلب", "comet-icon": "أيقونة المذنب", "snowflake-icon": "أيقونة ندفة الثلج", "wave-icon": "أيقونة الموجة", "atom-icon": "أيقونة الذرة", "leaf-icon-rare": "أيقونة الخضرة",
 };
 const FILTERS: { key: "all" | PerkCategory; label: string }[] = [
   { key: "all", label: "shop.filter.all" }, { key: "title", label: "shop.filter.title" },

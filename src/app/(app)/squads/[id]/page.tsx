@@ -88,14 +88,14 @@ export default async function SquadDetailPage({
             <div className="min-w-0 flex-1">
               <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-white">
                 {m.displayName}
-                {m.role === "admin" && <AdminChip small />}
+                {m.role === "admin" && <AdminChip small locale={ar ? "ar" : "en"} />}
                 {m.id === user.id && <span className="text-xs font-bold text-brand-300">{ar ? "(أنت)" : "(you)"}</span>}
                 {m.id === squad.createdBy && <Crown size={12} className="inline text-gold-400" />}
               </p>
               <p className="text-[0.68rem] text-[#6d6a8f]">@{m.username}</p>
             </div>
             <div className="hidden items-center gap-1.5 sm:flex">
-              <LevelChip level={levelFromXp(m.xp)} small />
+              <LevelChip level={levelFromXp(m.xp)} small locale={ar ? "ar" : "en"} />
               {m.streak > 0 && (
                 <span className="chip !px-1.5 !py-0 !text-[0.62rem] !font-bold text-gold-400">
                   <Flame size={10} /> {m.streak}
@@ -112,7 +112,7 @@ export default async function SquadDetailPage({
               </div>
             </div>
             <span className="tnum w-16 shrink-0 text-right text-sm font-bold text-white">
-              {fmtMinutes(Number(m.weekMinutes))}
+              {fmtMinutes(Number(m.weekMinutes), ar ? "ar" : "en")}
             </span>
           </div>
         ))}

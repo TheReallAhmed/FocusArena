@@ -59,7 +59,7 @@ export default async function SquadsPage() {
                 <span className="flex items-center gap-1.5">
                   <Users size={13} /> {s.memberCount} {ar ? "عضو" : `member${s.memberCount === 1 ? "" : "s"}`}
                 </span>
-                <span className="tnum font-semibold text-brand-300">{fmtMinutes(s.weekMinutes)} {ar ? "هذا الأسبوع" : "this week"}</span>
+                <span className="tnum font-semibold text-brand-300">{fmtMinutes(s.weekMinutes, ar ? "ar" : "en")} {ar ? "هذا الأسبوع" : "this week"}</span>
               </div>
             </Link>
           ))}

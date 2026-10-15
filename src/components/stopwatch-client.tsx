@@ -9,6 +9,7 @@ import { useTimer } from "@/components/timer-provider";
 import { BadgeIcon } from "@/components/widgets";
 import { ProjectPicker } from "@/components/project-picker";
 import { useLocale } from "@/components/locale-provider";
+import { localizeBadge } from "@/lib/badge-i18n";
 
 type TaskLite = { id: number; title: string; priority: string };
 
@@ -327,15 +328,16 @@ export function StopwatchClient({
           <div className="glass-card w-full max-w-sm p-8 text-center animate-scale-in" onClick={(e) => e.stopPropagation()}>
             <p className="text-[0.65rem] font-bold uppercase tracking-[0.35em] text-gold-400">{ar ? "فُتحت شارة جديدة" : "Badge unlocked"}</p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
-              {lastResult.newBadges.map((b) => (
-                <div key={b.key} className="flex flex-col items-center gap-2.5">
-                  <BadgeIcon badge={b} size={72} />
+              {lastResult.newBadges.map((b) => {
+                const localized = localizeBadge(b, locale);
+                return <div key={b.key} className="flex flex-col items-center gap-2.5">
+                  <BadgeIcon badge={localized} size={72} />
                   <div>
-                    <p className="text-sm font-bold text-white">{b.name}</p>
-                    <p className="mt-0.5 max-w-44 text-[0.7rem] text-[#8f8cb0]">{b.desc}</p>
+                    <p className="text-sm font-bold text-white">{localized.name}</p>
+                    <p className="mt-0.5 max-w-44 text-[0.7rem] text-[#8f8cb0]">{localized.desc}</p>
                   </div>
-                </div>
-              ))}
+                </div>;
+              })}
             </div>
             <button onClick={() => setShowBadges(false)} className="btn btn-primary mt-8 w-full !py-3">
               {ar ? "واصل التقدم" : "Keep grinding"}

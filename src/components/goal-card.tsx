@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { Check, Flame, LoaderCircle, Pencil, Target } from "lucide-react";
 import { setDailyGoalAction } from "@/server/actions";
 import { fmtMinutes } from "@/lib/dates";
+import { useLocale } from "@/components/locale-provider";
 
 /** Daily focus goal ring with inline editing. */
 export function GoalCard({ todayMinutes, goal }: { todayMinutes: number; goal: number }) {
+  const { locale, t } = useLocale();
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(goal);
@@ -34,14 +36,14 @@ export function GoalCard({ todayMinutes, goal }: { todayMinutes: number; goal: n
       />
       <div className="relative flex items-center justify-between">
         <h2 className="flex items-center gap-2 text-sm font-bold text-white">
-          <Target size={15} className="text-brand-300" /> Daily goal
+          <Target size={15} className="text-brand-300" /> {t("goal.title")}
         </h2>
         {!editing ? (
-          <button onClick={() => setEditing(true)} className="text-[#6d6a8f] transition hover:text-white" title="Edit goal">
+          <button onClick={() => setEditing(true)} className="text-[#6d6a8f] transition hover:text-white" title={t("goal.edit")}>
             <Pencil size={13} />
           </button>
         ) : (
-          <button onClick={save} disabled={pending} className="text-mint-400 transition hover:text-mint-300" title="Save">
+          <button onClick={save} disabled={pending} className="text-mint-400 transition hover:text-mint-300" title={t("goal.save")}>
             {pending ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={15} />}
           </button>
         )}
@@ -72,14 +74,14 @@ export function GoalCard({ todayMinutes, goal }: { todayMinutes: number; goal: n
 
         <div className="min-w-0 flex-1">
           {crushed ? (
-            <p className="text-sm font-bold text-mint-400">Goal crushed 🔥</p>
+            <p className="text-sm font-bold text-mint-400">{t("goal.crushed")}</p>
           ) : (
             <p className="text-sm font-bold text-white">
-              {fmtMinutes(Math.max(0, goal - todayMinutes))} <span className="font-medium text-[#8f8cb0]">to go</span>
+              {fmtMinutes(Math.max(0, goal - todayMinutes), locale)} <span className="font-medium text-[#8f8cb0]">{t("goal.toGo")}</span>
             </p>
           )}
           <p className="tnum mt-1 text-xs text-[#8f8cb0]">
-            {fmtMinutes(todayMinutes)} of {fmtMinutes(goal)} today
+            {fmtMinutes(todayMinutes, locale)} {t("goal.of", { goal: fmtMinutes(goal, locale) })}
           </p>
           {editing && (
             <div className="mt-3 flex items-center gap-2 animate-scale-in">
@@ -92,7 +94,7 @@ export function GoalCard({ todayMinutes, goal }: { todayMinutes: number; goal: n
                 onChange={(e) => setValue(Number(e.target.value))}
                 className="input tnum !w-20 !py-1.5 !px-2 text-center text-xs"
               />
-              <span className="text-[0.65rem] text-[#6d6a8f]">min/day</span>
+              <span className="text-[0.65rem] text-[#6d6a8f]">{t("goal.minutePerDay")}</span>
             </div>
           )}
           {!editing && !crushed && (

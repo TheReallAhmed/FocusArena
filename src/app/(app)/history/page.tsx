@@ -116,7 +116,7 @@ export default async function HistoryPage({
               </div>
               <div className="text-right">
                 <p className={`text-xs font-semibold ${tone}`}>{status}</p>
-                <p className="mt-1 text-[0.65rem] text-[#6d6a8f]">{timeAgo(item.startedAt)} · {locale === "ar" ? "المخطط" : "planned"} {fmtMinutes(item.plannedMinutes)}</p>
+                <p className="mt-1 text-[0.65rem] text-[#6d6a8f]">{timeAgo(item.startedAt, locale)} · {locale === "ar" ? "المخطط" : "planned"} {fmtMinutes(item.plannedMinutes, locale)}</p>
               </div>
             </div>;
           })}
@@ -145,11 +145,11 @@ export default async function HistoryPage({
                 {rows.map((r) => (
                   <tr key={r.id} className="transition hover:bg-white/[0.02]">
                     <td className="px-5 py-3">
-                      <span className="block font-medium text-white">{timeAgo(r.startedAt)}</span>
+                      <span className="block font-medium text-white">{timeAgo(r.startedAt, locale)}</span>
                       <span className="tnum block text-[0.63rem] text-[#6d6a8f]">
-                        {new Date(r.startedAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}
+                        {new Date(r.startedAt).toLocaleDateString(locale === "ar" ? "ar" : "en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}
                         {" · "}
-                        {new Date(r.startedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })}
+                        {new Date(r.startedAt).toLocaleTimeString(locale === "ar" ? "ar" : "en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })}
                       </span>
                     </td>
                     <td className="max-w-36 truncate px-3 py-3">
@@ -176,17 +176,17 @@ export default async function HistoryPage({
                         <p className={`mt-1 font-semibold ${r.commitmentStatus === "fulfilled" ? "text-mint-300" : r.commitmentStatus === "broken" ? "text-rose-300" : "text-gold-300"}`}>
                           {r.commitmentStatus === "fulfilled" ? text("history.fulfilled") : r.commitmentStatus === "broken" ? (locale === "ar" ? "أفاد بعدم الوفاء" : "Self-reported not fulfilled") : r.commitmentStatus === "unresolved" ? text("history.unresolved") : r.commitmentStatus ?? text("history.inProgress")}
                         </p>
-                        {r.consequence && <p className="mt-0.5 line-clamp-1 text-[0.63rem] text-[#6d6a8f]">Personal consequence: {r.consequence}</p>}
-                      </> : <span className="text-[#4a4866]">No commitment recorded</span>}
+                        {r.consequence && <p className="mt-0.5 line-clamp-1 text-[0.63rem] text-[#6d6a8f]">{locale === "ar" ? "العاقبة الشخصية:" : "Personal consequence:"} {r.consequence}</p>}
+                      </> : <span className="text-[#4a4866]">{text("history.noCommitment")}</span>}
                     </td>
                     <td className="hidden px-3 py-3 text-[0.68rem] text-[#8f8cb0] lg:table-cell">
                       <p>{text("history.energy")}: {r.energyRating ? `${r.energyRating}/5` : "—"}</p>
-                      <p>{text("history.attention")}: {r.verificationStatus?.replaceAll("_", " ") ?? "—"}</p>
+                      <p>{text("history.attention")}: {r.verificationStatus ? (locale === "ar" ? ({ verified: "موثّق", partial: "جزئي", unverified: "غير موثّق", missed: "لم يرد", not_configured: "غير مفعّل" } as Record<string, string>)[r.verificationStatus] ?? r.verificationStatus.replaceAll("_", " ") : r.verificationStatus.replaceAll("_", " ")) : "—"}</p>
                       {r.focusQuality !== null && <p>{text("history.quality")}: {r.focusQuality}%</p>}
                     </td>
                     <td className="px-5 py-3 text-right">
                       <span className="tnum rounded-md bg-brand-500/12 px-2 py-1 text-xs font-bold text-brand-300">
-                        +{r.minutes}m
+                        +{r.minutes}{locale === "ar" ? " د" : "m"}
                       </span>
                     </td>
                   </tr>

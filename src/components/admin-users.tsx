@@ -8,6 +8,7 @@ import { setUserRoleAction, deleteUserAction } from "@/server/actions";
 import { Avatar, AdminChip, LevelChip } from "@/components/widgets";
 import { levelFromXp } from "@/lib/xp";
 import { fmtMinutes } from "@/lib/dates";
+import { useLocale } from "@/components/locale-provider";
 
 type Row = {
   id: number;
@@ -25,6 +26,7 @@ type Row = {
 
 export function AdminUsersTable({ users, meId }: { users: Row[]; meId: number }) {
   const router = useRouter();
+  const { locale, t } = useLocale();
   const [pending, start] = useTransition();
 
   const toggleRole = (id: number, role: string) => {
@@ -35,7 +37,7 @@ export function AdminUsersTable({ users, meId }: { users: Row[]; meId: number })
   };
 
   const removeUser = (id: number, name: string) => {
-    if (!window.confirm(`Permanently delete ${name} and all their data? This cannot be undone.`)) return;
+    if (!window.confirm(t("admin.deleteConfirm", { name }))) return;
     start(async () => {
       await deleteUserAction(id);
       router.refresh();
@@ -52,15 +54,15 @@ export function AdminUsersTable({ users, meId }: { users: Row[]; meId: number })
               <Link href={`/u/${u.username}`} className="truncate hover:text-brand-300">
                 {u.displayName}
               </Link>
-              {u.role === "admin" && <AdminChip small />}
-              {u.id === meId && <span className="text-[0.65rem] text-brand-300">(you)</span>}
+              {u.role === "admin" && <AdminChip small locale={locale} />}
+              {u.id === meId && <span className="text-[0.65rem] text-brand-300">{t("common.you")}</span>}
             </p>
             <p className="text-[0.65rem] text-[#6d6a8f]">
-              @{u.username} · joined {new Date(u.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+              @{u.username} · {t("common.joined")} {new Date(u.createdAt).toLocaleDateString(locale === "ar" ? "ar" : "en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
             </p>
           </div>
           <div className="hidden items-center gap-1.5 md:flex">
-            <LevelChip level={levelFromXp(u.xp)} small />
+            <LevelChip level={levelFromXp(u.xp)} small locale={locale} />
             {u.streak > 0 && (
               <span className="chip !px-1.5 !py-0 !text-[0.62rem] !font-bold text-gold-400">
                 <Flame size={10} /> {u.streak}
@@ -68,10 +70,10 @@ export function AdminUsersTable({ users, meId }: { users: Row[]; meId: number })
             )}
           </div>
           <span className="tnum hidden w-20 text-right text-xs text-[#8f8cb0] lg:block">
-            {fmtMinutes(u.xp)}
+            {fmtMinutes(u.xp, locale)}
           </span>
           <span className="tnum hidden w-16 text-right text-xs text-[#8f8cb0] sm:block">
-            {u.sessions} sess
+            {u.sessions} {t("common.sessionsShort")}
           </span>
           <span className="tnum hidden w-14 text-right text-xs text-[#8f8cb0] sm:block">
             {u.badges} 🏅
@@ -86,15 +88,15 @@ export function AdminUsersTable({ users, meId }: { users: Row[]; meId: number })
                   className={`btn btn-ghost !px-3 !py-1.5 !text-[0.68rem] ${
                     u.role === "admin" ? "hover:!text-rose-300" : "hover:!text-gold-400"
                   }`}
-                  title={u.role === "admin" ? "Remove admin" : "Make admin"}
+                  title={t(u.role === "admin" ? "admin.removeAdmin" : "admin.makeAdmin")}
                 >
                   {u.role === "admin" ? <ShieldOff size={13} /> : <ShieldCheck size={13} />}
-                  {u.role === "admin" ? "Demote" : "Make admin"}
+                  {t(u.role === "admin" ? "admin.demote" : "admin.makeAdmin")}
                 </button>
                 <button
                   onClick={() => removeUser(u.id, u.displayName)}
                   className="btn btn-ghost !rounded-lg !p-1.5 hover:!text-rose-400"
-                  title="Delete user"
+                  title={t("admin.deleteUser")}
                 >
                   <Trash2 size={14} />
                 </button>

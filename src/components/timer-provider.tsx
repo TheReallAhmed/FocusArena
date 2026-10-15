@@ -10,6 +10,8 @@ import { completeFocusSession, type FocusResult } from "@/server/actions";
 import { abandonFocusRunAction, answerProofCheckAction, beginFocusRunAction, cancelFocusRunAction, pollProofCheckAction, type SessionStartDetails } from "@/server/distractions";
 import { playChime, unlockAudio } from "@/lib/sound";
 import { fmtClock } from "@/lib/dates";
+import { useLocale } from "@/components/locale-provider";
+import { t as translate } from "@/lib/i18n";
 
 /* ------------------------------- TYPES ------------------------------- */
 
@@ -171,6 +173,7 @@ const ACCENT: Record<Mode, { a: string; b: string; label: string }> = {
 
 export function TimerProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const { locale } = useLocale();
   const [st, setSt] = useState<StoredState | null>(null);
   const [msLeft, setMsLeft] = useState(0);
   const [swElapsedMs, setSwElapsedMs] = useState(0);
@@ -245,10 +248,10 @@ export function TimerProvider({ children }: { children: ReactNode }) {
         const after = before + minutes;
         persist({ ...cur, todayMin: after, note: null });
         if (res.leveledUp) {
-          pushCelebration({ icon: "badge", title: `Level ${res.level} reached`, sub: "Your grind is compounding", hue: 205 });
+          pushCelebration({ icon: "badge", title: translate(locale, "focus.levelReached", { level: res.level }), sub: translate(locale, "focus.levelReachedSub"), hue: 205 });
         }
         if (before < cur.goalMinutes && after >= cur.goalMinutes) {
-          pushCelebration({ icon: "xp", title: `Daily goal crushed — ${after}m today`, sub: "Bonus rounds still count", hue: 150 });
+          pushCelebration({ icon: "xp", title: translate(locale, "focus.dailyGoalCrushed", { minutes: after }), sub: translate(locale, "focus.dailyGoalBonus"), hue: 150 });
           if (!cur.muted) playChime("bank");
         }
       }
@@ -256,15 +259,15 @@ export function TimerProvider({ children }: { children: ReactNode }) {
 
       pushCelebration({
         icon: "xp",
-        title: kind === "bank" ? `Banked +${res.gained} XP` : `Round banked — +${res.gained} XP`,
-        sub: `streak ${res.streak}d · level ${res.level}`,
+        title: translate(locale, kind === "bank" ? "focus.bankToast" : "focus.roundBankedToast", { xp: res.gained }),
+        sub: translate(locale, "focus.streakLevel", { streak: res.streak, level: res.level }),
         hue: 255,
       });
       for (const b of res.newBadges) {
-        pushCelebration({ icon: "badge", title: `Badge unlocked: ${b.name}`, sub: b.desc, hue: b.hue });
+        pushCelebration({ icon: "badge", title: translate(locale, "focus.badgeToast", { name: b.name }), sub: b.desc, hue: b.hue });
       }
     } catch { /* offline: keep going */ }
-  }, [persist, pushCelebration]);
+  }, [locale, persist, pushCelebration]);
 
   /* ---------------------- POMODORO TRANSITIONS ------------------------- */
 
@@ -753,36 +756,36 @@ export function TimerProvider({ children }: { children: ReactNode }) {
             role="dialog" aria-modal="true" aria-labelledby="focus-checkin-title"
           >
             <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-500/15 text-brand-300"><Target size={21} /></span>
-            <h2 id="focus-checkin-title" className="mt-4 text-xl font-bold tracking-tight text-white">Set your intention</h2>
-            <p className="mt-1 text-sm text-[#8f8cb0]">A quick private check-in before this focus round. You can skip the energy rating and attention checks.</p>
+            <h2 id="focus-checkin-title" className="mt-4 text-xl font-bold tracking-tight text-white">{translate(locale, "timer.setupTitle")}</h2>
+            <p className="mt-1 text-sm text-[#8f8cb0]">{translate(locale, "timer.setupSubtitle")}</p>
 
             <label className="mt-5 block text-xs font-semibold uppercase tracking-[0.12em] text-[#8f8cb0]">
-              What exactly do you want to accomplish? <span className="text-rose-300">*</span>
-              <textarea required minLength={3} maxLength={240} value={focusGoal} onChange={(e) => setFocusGoal(e.target.value)} className="input mt-2 min-h-20 resize-y normal-case tracking-normal" placeholder="Finish the outline for section two…" />
+              {translate(locale, "timer.outcome")} <span className="text-rose-300">*</span>
+              <textarea required minLength={3} maxLength={240} value={focusGoal} onChange={(e) => setFocusGoal(e.target.value)} className="input mt-2 min-h-20 resize-y normal-case tracking-normal" placeholder={translate(locale, "timer.outcomePlaceholder")} />
             </label>
             <label className="mt-4 block text-xs font-semibold uppercase tracking-[0.12em] text-[#8f8cb0]">
-              A personal consequence if you do not fulfill it <span className="font-normal normal-case tracking-normal text-[#5c5a78]">· optional</span>
-              <input maxLength={240} value={focusConsequence} onChange={(e) => setFocusConsequence(e.target.value)} className="input mt-2 normal-case tracking-normal" placeholder="Take a short walk before the next round" />
+              {translate(locale, "timer.consequence")} <span className="font-normal normal-case tracking-normal text-[#5c5a78]">· {translate(locale, "timer.optional")}</span>
+              <input maxLength={240} value={focusConsequence} onChange={(e) => setFocusConsequence(e.target.value)} className="input mt-2 normal-case tracking-normal" placeholder={translate(locale, "timer.consequencePlaceholder")} />
             </label>
             <div className="mt-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8f8cb0]">Energy right now? <span className="font-normal normal-case tracking-normal text-[#5c5a78]">· optional</span></p>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8f8cb0]">{translate(locale, "timer.energy")} <span className="font-normal normal-case tracking-normal text-[#5c5a78]">· {translate(locale, "timer.optional")}</span></p>
               <div className="mt-2 grid grid-cols-5 gap-2">
-                {["Very low", "Low", "Moderate", "High", "Very high"].map((label, index) => {
-                  const value = index + 1;
+                {[1, 2, 3, 4, 5].map((value) => {
+                  const label = translate(locale, `timer.energy.${value}`);
                   return <button key={value} type="button" aria-pressed={focusEnergy === value} onClick={() => setFocusEnergy(focusEnergy === value ? null : value)} className={`tab-pill !flex-col !gap-1 !px-1.5 !py-2 ${focusEnergy === value ? "tab-pill-active" : ""}`}><b>{value}</b><span className="text-[0.55rem] leading-tight">{label}</span></button>;
                 })}
               </div>
             </div>
             <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-line bg-white/[0.025] p-3.5">
               <input type="checkbox" checked={proofOptIn} onChange={(e) => setProofOptIn(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#7c6cff]" />
-              <span><span className="flex items-center gap-1.5 text-sm font-semibold text-white"><ShieldCheck size={14} className="text-neon-300" /> Enable optional attention check</span><span className="mt-1 block text-xs leading-relaxed text-[#6d6a8f]">For rounds of 15+ minutes, one server-timed prompt may appear; it expires after two minutes. It is an accountability aid, not proof of cheating or continuous attention.</span></span>
+              <span><span className="flex items-center gap-1.5 text-sm font-semibold text-white"><ShieldCheck size={14} className="text-neon-300" /> {translate(locale, "timer.enableAttention")}</span><span className="mt-1 block text-xs leading-relaxed text-[#6d6a8f]">{translate(locale, "timer.attentionDetails")}</span></span>
             </label>
 
-            {focusSetupError && <p role="alert" className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2.5 text-sm text-rose-300">{focusSetupError}</p>}
+            {focusSetupError && <p role="alert" className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2.5 text-sm text-rose-300">{translate(locale, "timer.startError")}</p>}
             <div className="mt-5 flex flex-wrap justify-end gap-2 border-t border-line pt-4">
-              <button type="button" disabled={focusSetupSaving} onClick={() => { setPendingFocusSetup(false); setFocusSetupError(null); }} className="btn btn-ghost !px-4 !py-2.5">Cancel</button>
+              <button type="button" disabled={focusSetupSaving} onClick={() => { setPendingFocusSetup(false); setFocusSetupError(null); }} className="btn btn-ghost !px-4 !py-2.5">{translate(locale, "timer.cancel")}</button>
               <button type="submit" disabled={focusSetupSaving || focusGoal.trim().length < 3} className="btn btn-primary !px-5 !py-2.5">
-                {focusSetupSaving ? <LoaderCircle size={15} className="animate-spin" /> : <Play size={15} />} {focusSetupSaving ? "Saving…" : "Save & start focus"}
+                {focusSetupSaving ? <LoaderCircle size={15} className="animate-spin" /> : <Play size={15} />} {focusSetupSaving ? translate(locale, "timer.saving") : translate(locale, "timer.saveStart")}
               </button>
             </div>
           </form>
@@ -793,14 +796,14 @@ export function TimerProvider({ children }: { children: ReactNode }) {
         <div className="fixed inset-0 z-[170] flex items-center justify-center bg-ink-950/75 p-4 backdrop-blur-sm">
           <div className="glass-card w-full max-w-sm p-6 text-center" role="dialog" aria-modal="true" aria-labelledby="proof-prompt-title">
             <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-neon-400/12 text-neon-300"><ShieldCheck size={22} /></span>
-            <h2 id="proof-prompt-title" className="mt-4 text-lg font-bold text-white">Are you still focused?</h2>
-            <p className="mt-2 text-sm text-[#8f8cb0]">Confirm within two minutes. A missed response can also mean an interruption or connection issue.</p>
-            {proofPromptError && <p role="alert" className="mt-3 text-xs text-rose-300">{proofPromptError}</p>}
-            <button onClick={() => void answerProofPrompt()} className="btn btn-primary mt-5 w-full !py-3"><Check size={16} /> Yes, I’m here</button>
+            <h2 id="proof-prompt-title" className="mt-4 text-lg font-bold text-white">{translate(locale, "timer.focusCheckTitle")}</h2>
+            <p className="mt-2 text-sm text-[#8f8cb0]">{translate(locale, "timer.focusCheckDescription")}</p>
+            {proofPromptError && <p role="alert" className="mt-3 text-xs text-rose-300">{translate(locale, "timer.checkError")}</p>}
+            <button onClick={() => void answerProofPrompt()} className="btn btn-primary mt-5 w-full !py-3"><Check size={16} /> {translate(locale, "timer.focusCheckConfirm")}</button>
           </div>
         </div>
       )}
-      {proofPromptError && !proofPromptRunKey && <p role="status" className="fixed bottom-5 left-1/2 z-[175] -translate-x-1/2 rounded-xl border border-gold-400/30 bg-ink-900 px-4 py-3 text-sm text-gold-200 shadow-xl">{proofPromptError}</p>}
+      {proofPromptError && !proofPromptRunKey && <p role="status" className="fixed bottom-5 left-1/2 z-[175] -translate-x-1/2 rounded-xl border border-gold-400/30 bg-ink-900 px-4 py-3 text-sm text-gold-200 shadow-xl">{translate(locale, "timer.checkError")}</p>}
 
       {/* Floating widget — visible while timer runs on ANY page */}
       {(pomodoroActive || stopwatchActive) && !(pomodoroActive && pathname === "/focus") && !(stopwatchActive && pathname === "/stopwatch" && !pomodoroActive) && (
@@ -824,12 +827,10 @@ export function TimerProvider({ children }: { children: ReactNode }) {
               <HelpCircle size={22} />
             </span>
             <h2 className="mt-4 text-xl font-bold tracking-tight text-white">
-              If you stop in the middle, should the minutes count?
+              {translate(locale, "timer.partialTitle")}
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-[#8f8cb0]">
-              You are about to start a{" "}
-              <b className="text-white">{pendingAsk === "pomodoro" ? "Pomodoro round" : "stopwatch session"}</b>.
-              Choose how FocusArena treats time when you stop early.
+              {translate(locale, "timer.partialIntro", { kind: translate(locale, pendingAsk === "pomodoro" ? "timer.partialPomodoro" : "timer.partialStopwatch") })}
             </p>
 
             <div className="mt-6 space-y-3">
@@ -841,9 +842,9 @@ export function TimerProvider({ children }: { children: ReactNode }) {
                   <Check size={16} strokeWidth={2.6} />
                 </span>
                 <span>
-                  <span className="block text-sm font-bold text-white">Yes — count every minute</span>
+                  <span className="block text-sm font-bold text-white">{translate(locale, "timer.partialYesTitle")}</span>
                   <span className="mt-0.5 block text-xs leading-relaxed text-[#a5a2c8]">
-                    Whether you finish the round or stop halfway, the elapsed minutes are banked as XP.
+                    {translate(locale, "timer.partialYesText")}
                   </span>
                 </span>
               </button>
@@ -856,18 +857,18 @@ export function TimerProvider({ children }: { children: ReactNode }) {
                   <Ban size={15} strokeWidth={2.4} />
                 </span>
                 <span>
-                  <span className="block text-sm font-bold text-white">No — only completed sessions</span>
+                  <span className="block text-sm font-bold text-white">{translate(locale, "timer.partialNoTitle")}</span>
                   <span className="mt-0.5 block text-xs leading-relaxed text-[#a5a2c8]">
-                    Hardcore mode. Minutes only count when the round finishes (or when you press Bank).
+                    {translate(locale, "timer.partialNoText")}
                   </span>
                 </span>
               </button>
             </div>
 
             <div className="mt-5 flex items-center justify-between gap-3 border-t border-line pt-4">
-              <p className="text-[0.68rem] text-[#5c5a78]">You can change this anytime in timer settings.</p>
+              <p className="text-[0.68rem] text-[#5c5a78]">{translate(locale, "timer.partialSettingsHint")}</p>
               <button onClick={() => setPendingAsk(null)} className="btn btn-ghost !px-3.5 !py-2 !text-xs">
-                Cancel
+                {translate(locale, "timer.cancel")}
               </button>
             </div>
           </div>

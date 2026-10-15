@@ -8,6 +8,7 @@ import { EmptyState, BadgeIcon } from "@/components/widgets";
 import { fmtMinutes } from "@/lib/dates";
 import type { Task } from "@/db/schema";
 import { useLocale } from "@/components/locale-provider";
+import { localizeBadge } from "@/lib/badge-i18n";
 
 const PRIO_STYLE: Record<string, { dot: string; label: string; cls: string }> = {
   high: { dot: "bg-rose-400", label: "High", cls: "border-rose-500/40 bg-rose-500/12 text-rose-300" },
@@ -18,7 +19,7 @@ const PRIO_STYLE: Record<string, { dot: string; label: string; cls: string }> = 
 type BadgeToast = { key: string; name: string; desc: string; icon: string; hue: number };
 
 export function TasksClient({ initialTasks }: { initialTasks: Task[] }) {
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState("normal");
   const [pending, start] = useTransition();
@@ -147,10 +148,10 @@ export function TasksClient({ initialTasks }: { initialTasks: Task[] }) {
       {badgeToast && (
         <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 animate-scale-in">
           <div className="glass-card flex items-center gap-3 !rounded-2xl border-gold-400/40 px-5 py-3.5 shadow-[0_10px_50px_-10px_rgba(251,191,36,0.35)]">
-            <BadgeIcon badge={badgeToast} size={42} />
+            <BadgeIcon badge={localizeBadge(badgeToast, locale)} size={42} />
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-gold-400">{t("tasks.badge")}</p>
-              <p className="text-sm font-bold text-white">{badgeToast.name}</p>
+              <p className="text-sm font-bold text-white">{localizeBadge(badgeToast, locale).name}</p>
             </div>
           </div>
         </div>
@@ -170,7 +171,7 @@ function TaskRow({
   onDelete: (id: number) => void;
   pending: boolean;
 }) {
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
   const prio = PRIO_STYLE[task.priority] ?? PRIO_STYLE.normal;
   return (
     <li
@@ -195,7 +196,7 @@ function TaskRow({
           {task.title}
         </p>
         {task.focusMinutes > 0 && (
-          <p className="tnum mt-0.5 text-[0.65rem] text-brand-300/80">{fmtMinutes(task.focusMinutes)}</p>
+          <p className="tnum mt-0.5 text-[0.65rem] text-brand-300/80">{fmtMinutes(task.focusMinutes, locale)}</p>
         )}
       </div>
       <span className={`chip shrink-0 !px-2 !py-0.5 !text-[0.62rem] !font-bold ${prio.cls}`}>{t(`tasks.${task.priority === "high" || task.priority === "low" ? task.priority : "normal"}`)}</span>

@@ -351,7 +351,7 @@ export function FocusTimer({
             className={`chip !text-[0.7rem] !font-semibold ${
               todayMin >= dailyGoal ? "!border-mint-400/45 !bg-mint-400/12 !text-mint-400" : ""
             }`}
-            title={`Daily goal: ${dailyGoal}m`}
+            title={t("focus.dailyGoal", { goal: dailyGoal })}
           >
             <Flame size={12} className={todayMin >= dailyGoal ? "text-gold-400" : "text-brand-300"} />
             {t("dashboard.today")}: {Math.round(todayMin)}m / {dailyGoal}m
@@ -371,7 +371,7 @@ export function FocusTimer({
               </span>
             )}
             {prevGained !== null && (
-              <span className="chip !text-[0.7rem] text-brand-300">+{prevGained} XP banked</span>
+              <span className="chip !text-[0.7rem] text-brand-300">{t("focus.bankedXp", { xp: prevGained })}</span>
             )}
           </div>
         )}
@@ -383,9 +383,9 @@ export function FocusTimer({
         <p className="relative mt-4 hidden items-center justify-center gap-4 text-[0.68rem] text-[#5c5a78] sm:flex">
           <Keyboard size={12} />
           <span><b className="text-[#8f8cb0]">Space</b> {t("focus.start")}/{t("focus.pause")}</span>
-          <span><b className="text-[#8f8cb0]">R</b> reset</span>
-          <span><b className="text-[#8f8cb0]">S</b> skip</span>
-          <span><b className="text-[#8f8cb0]">M</b> mute</span>
+          <span><b className="text-[#8f8cb0]">R</b> {t("focus.keyReset")}</span>
+          <span><b className="text-[#8f8cb0]">S</b> {t("focus.keySkip")}</span>
+          <span><b className="text-[#8f8cb0]">M</b> {t("focus.keyMute")}</span>
         </p>
 
         {/* active task */}
@@ -394,7 +394,7 @@ export function FocusTimer({
             <div className="flex items-center gap-3 rounded-2xl border border-brand-500/35 bg-brand-500/10 px-4 py-3">
               <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-brand-400" />
               <div className="min-w-0 flex-1">
-                <p className="text-[0.62rem] font-bold uppercase tracking-[0.16em] text-brand-300">Focusing on</p>
+                <p className="text-[0.62rem] font-bold uppercase tracking-[0.16em] text-brand-300">{t("focus.focusingOn")}</p>
                 <p className="truncate text-sm font-semibold text-white">{activeTask.title}</p>
               </div>
               <button
@@ -404,7 +404,7 @@ export function FocusTimer({
               >
                 <CheckCircle2 size={14} /> {t("focus.completeTask")}
               </button>
-              <button onClick={() => pSetTask(null)} className="shrink-0 text-[#6d6a8f] hover:text-white" title="Unlink">
+              <button onClick={() => pSetTask(null)} className="shrink-0 text-[#6d6a8f] hover:text-white" title={t("focus.unlink")}>
                 <X size={15} />
               </button>
             </div>
@@ -465,10 +465,10 @@ export function FocusTimer({
         <div className="glass-card p-5">
           <h2 className="text-sm font-bold text-white">{t("focus.settingsTitle")}</h2>
           <ul className="mt-3 space-y-2.5 text-[0.83rem] leading-relaxed text-[#8f8cb0]">
-            <li className="flex gap-2.5"><span className="tnum font-bold text-brand-300">01</span> One task per round. No multitasking.</li>
-            <li className="flex gap-2.5"><span className="tnum font-bold text-brand-300">02</span> Timer survives navigation — feel free to check the board mid-round.</li>
-            <li className="flex gap-2.5"><span className="tnum font-bold text-brand-300">03</span> After 4 rounds, take the long break — you earned it.</li>
-            <li className="flex gap-2.5"><span className="tnum font-bold text-brand-300">04</span> Check the board. Pass {displayName.split(" ")[0]} if you can.</li>
+            <li className="flex gap-2.5"><span className="tnum font-bold text-brand-300">01</span> {t("focus.tip.one")}</li>
+            <li className="flex gap-2.5"><span className="tnum font-bold text-brand-300">02</span> {t("focus.tip.two")}</li>
+            <li className="flex gap-2.5"><span className="tnum font-bold text-brand-300">03</span> {t("focus.tip.three")}</li>
+            <li className="flex gap-2.5"><span className="tnum font-bold text-brand-300">04</span> {t("focus.tip.four", { name: displayName.split(" ")[0] })}</li>
           </ul>
         </div>
       </div>
@@ -484,7 +484,7 @@ export function FocusTimer({
           <button
             onClick={toggleZen}
             className="btn btn-ghost absolute right-5 top-5 !rounded-full !p-3"
-            title="Exit zen mode (Esc)"
+            title={t("focus.exitZen")}
           >
             <Minimize2 size={18} />
           </button>
@@ -496,7 +496,7 @@ export function FocusTimer({
           {ring("relative max-w-[min(74vw,440px)]")}
           <div className="relative">{controls}</div>
           <p className="relative mt-6 text-[0.68rem] font-medium uppercase tracking-[0.3em] text-[#5c5a78]">
-            Zen mode · Esc to exit
+            {t("focus.zenFooter")}
           </p>
         </div>
       )}
@@ -505,7 +505,7 @@ export function FocusTimer({
       {showBadges && lastResult && lastResult.newBadges.length > 0 && (
         <div className="fixed inset-0 z-[140] flex items-center justify-center bg-ink-950/80 p-4 backdrop-blur-sm" onClick={() => setShowBadges(false)}>
           <div className="glass-card w-full max-w-sm p-8 text-center animate-scale-in" onClick={(e) => e.stopPropagation()}>
-            <p className="text-[0.65rem] font-bold uppercase tracking-[0.35em] text-gold-400">Badge unlocked</p>
+            <p className="text-[0.65rem] font-bold uppercase tracking-[0.35em] text-gold-400">{t("focus.badgeUnlocked")}</p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
               {lastResult.newBadges.map((b) => (
                 <div key={b.key} className="flex flex-col items-center gap-2.5">
@@ -518,7 +518,7 @@ export function FocusTimer({
               ))}
             </div>
             <button onClick={() => setShowBadges(false)} className="btn btn-primary mt-8 w-full !py-3">
-              Keep grinding
+              {t("focus.keepGrinding")}
             </button>
           </div>
         </div>

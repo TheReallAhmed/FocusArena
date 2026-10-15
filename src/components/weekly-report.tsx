@@ -1,5 +1,8 @@
+"use client";
+
 import { Gauge, Target, Flame, CalendarCheck } from "lucide-react";
 import { fmtMinutes } from "@/lib/dates";
+import { useLocale } from "@/components/locale-provider";
 
 type Props = {
   weekTotal: number;
@@ -11,6 +14,7 @@ type Props = {
 
 /** One compact, personal verdict on your week — grade S → D with a breakdown. */
 export function WeeklyReport({ weekTotal, weekGoal, activeDays, goalDays, streak }: Props) {
+  const { locale, t } = useLocale();
   const volume = Math.min(1, weekTotal / Math.max(1, weekGoal));
   const consistency = activeDays / 7;
   const goalRate = goalDays / 7;
@@ -18,17 +22,17 @@ export function WeeklyReport({ weekTotal, weekGoal, activeDays, goalDays, streak
 
   const score = Math.round(volume * 40 + consistency * 25 + goalRate * 20 + streakScore * 15);
   const grade =
-    score >= 90 ? { g: "S", hue: 45, label: "Untouchable" } :
-    score >= 75 ? { g: "A", hue: 150, label: "Elite week" } :
-    score >= 60 ? { g: "B", hue: 190, label: "Strong week" } :
-    score >= 40 ? { g: "C", hue: 255, label: "Building momentum" } :
-                  { g: "D", hue: 0,   label: "Warm-up phase" };
+    score >= 90 ? { g: "S", hue: 45, label: t("weekly.untouchable") } :
+    score >= 75 ? { g: "A", hue: 150, label: t("weekly.elite") } :
+    score >= 60 ? { g: "B", hue: 190, label: t("weekly.strong") } :
+    score >= 40 ? { g: "C", hue: 255, label: t("weekly.building") } :
+                  { g: "D", hue: 0,   label: t("weekly.warmup") };
 
   const parts = [
-    { icon: Gauge, label: "Volume", pct: Math.round(volume * 100), hue: 255, sub: `${fmtMinutes(weekTotal)} / ${fmtMinutes(weekGoal)}` },
-    { icon: CalendarCheck, label: "Consistency", pct: Math.round(consistency * 100), hue: 190, sub: `${activeDays}/7 days active` },
-    { icon: Target, label: "Goal rate", pct: Math.round(goalRate * 100), hue: 150, sub: `${goalDays} goal days` },
-    { icon: Flame, label: "Streak", pct: Math.round(streakScore * 100), hue: 45, sub: `${streak} day streak` },
+    { icon: Gauge, label: t("weekly.volume"), pct: Math.round(volume * 100), hue: 255, sub: `${fmtMinutes(weekTotal, locale)} / ${fmtMinutes(weekGoal, locale)}` },
+    { icon: CalendarCheck, label: t("weekly.consistency"), pct: Math.round(consistency * 100), hue: 190, sub: t("weekly.activeDays", { count: activeDays }) },
+    { icon: Target, label: t("weekly.goalRate"), pct: Math.round(goalRate * 100), hue: 150, sub: t("weekly.goalDays", { count: goalDays }) },
+    { icon: Flame, label: t("weekly.streak"), pct: Math.round(streakScore * 100), hue: 45, sub: t("weekly.dayStreak", { count: streak }) },
   ];
 
   const C = 2 * Math.PI * 40;
@@ -40,8 +44,8 @@ export function WeeklyReport({ weekTotal, weekGoal, activeDays, goalDays, streak
         style={{ background: `hsl(${grade.hue} 85% 58% / 0.15)` }}
       />
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-sm font-bold text-white">Weekly report card</h2>
-        <span className="tnum text-xs text-[#8f8cb0]">{score}/100 focus score</span>
+        <h2 className="text-sm font-bold text-white">{t("weekly.title")}</h2>
+        <span className="tnum text-xs text-[#8f8cb0]">{t("weekly.score", { score })}</span>
       </div>
 
       <div className="relative flex items-center gap-5">
@@ -72,7 +76,7 @@ export function WeeklyReport({ weekTotal, weekGoal, activeDays, goalDays, streak
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-bold text-white">{grade.label}</p>
-          <p className="mt-0.5 text-[0.7rem] text-[#6d6a8f]">Rolling last 7 days</p>
+          <p className="mt-0.5 text-[0.7rem] text-[#6d6a8f]">{t("weekly.rolling")}</p>
 
           <ul className="mt-3 space-y-2">
             {parts.map((p) => (

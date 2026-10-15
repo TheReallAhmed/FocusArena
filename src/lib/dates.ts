@@ -26,9 +26,9 @@ export function lastNDays(n: number, from: string = dayKey()): string[] {
 }
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-export function dayLabel(key: string): string {
+export function dayLabel(key: string, locale: "en" | "ar" = "en"): string {
   const d = new Date(key + "T00:00:00Z");
-  return DAY_LABELS[(d.getUTCDay() + 6) % 7];
+  return locale === "ar" ? d.toLocaleDateString("ar", { weekday: "short", timeZone: "UTC" }) : DAY_LABELS[(d.getUTCDay() + 6) % 7];
 }
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -51,11 +51,13 @@ export function shiftMonth(year: number, month: number, delta: number) {
   return { y: d.getUTCFullYear(), m: d.getUTCMonth() + 1 };
 }
 
-export function fmtMinutes(min: number): string {
-  if (min < 60) return `${min}m`;
+export function fmtMinutes(min: number, locale: "en" | "ar" = "en"): string {
+  const minuteUnit = locale === "ar" ? "د" : "m";
+  const hourUnit = locale === "ar" ? "س" : "h";
+  if (min < 60) return `${min}${minuteUnit}`;
   const h = Math.floor(min / 60);
   const m = min % 60;
-  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+  return m === 0 ? `${h}${hourUnit}` : `${h}${hourUnit} ${m}${minuteUnit}`;
 }
 
 export function fmtClock(totalSeconds: number): string {
@@ -65,17 +67,19 @@ export function fmtClock(totalSeconds: number): string {
 }
 
 /** "just now", "12m", "3h", "5d" — short relative time */
-export function timeAgo(iso: string | Date): string {
+export function timeAgo(iso: string | Date, locale: "en" | "ar" = "en"): string {
+  const ar = locale === "ar";
   const at = typeof iso === "string" ? new Date(iso) : iso;
   const diff = Date.now() - at.getTime();
   const m = Math.floor(diff / 60000);
-  if (m < 1) return "now";
-  if (m < 60) return `${m}m`;
+  if (m < 1) return ar ? "الآن" : "now";
+  if (m < 60) return ar ? `منذ ${m} د` : `${m}m`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h`;
+  if (h < 24) return ar ? `منذ ${h} س` : `${h}h`;
   const d = Math.floor(h / 24);
-  if (d < 30) return `${d}d`;
-  return `${Math.floor(d / 30)}mo`;
+  if (d < 30) return ar ? `منذ ${d} يوم` : `${d}d`;
+  const months = Math.floor(d / 30);
+  return ar ? `منذ ${months} شهر` : `${months}mo`;
 }
 
 /** 1234 → "1.2k", 22000 → "22k" */

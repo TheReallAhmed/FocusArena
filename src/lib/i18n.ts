@@ -1,3 +1,5 @@
+import { EXTRA_AR, EXTRA_EN } from "@/lib/i18n-extra";
+
 export type Locale = "en" | "ar";
 export const DEFAULT_LOCALE: Locale = "en";
 export const normalizeLocale = (value: unknown): Locale => value === "ar" ? "ar" : "en";
@@ -35,6 +37,6 @@ const AR: Record<string, string> = {
 };
 
 export function t(locale: Locale, key: string, values?: Record<string, string | number>): string {
-  const text = (locale === "ar" ? AR[key] : EN[key]) ?? EN[key] ?? key;
+  const text = (locale === "ar" ? AR[key] ?? EXTRA_AR[key] : EN[key] ?? EXTRA_EN[key]) ?? EN[key] ?? EXTRA_EN[key] ?? key;
   return values ? text.replace(/\{(\w+)\}/g, (_, name: string) => String(values[name] ?? `{${name}}`)) : text;
 }
