@@ -175,6 +175,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
   const [pendingAsk, setPendingAsk] = useState<null | "pomodoro" | "stopwatch">(null);
   const stRef = useRef<StoredState | null>(null);
   const pathRef = useRef(pathname);
+  const resolvingEndAtRef = useRef<number | null>(null);
 
   useLayoutEffect(() => {
     stRef.current = st;
@@ -258,6 +259,10 @@ export function TimerProvider({ children }: { children: ReactNode }) {
   const resolvePomodoro = useCallback(async () => {
     const cur = stRef.current;
     if (!cur || cur.pomodoro.status !== "running" || !cur.pomodoro.endAt) return;
+    const resolvingEndAt = cur.pomodoro.endAt;
+    // Prevent overlapping interval ticks from resolving the same phase twice.
+    if (resolvingEndAtRef.current === resolvingEndAt) return;
+    resolvingEndAtRef.current = resolvingEndAt;
 
     let { mode, cycles, taskId } = cur.pomodoro;
     let endAt = cur.pomodoro.endAt;
@@ -287,6 +292,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
             ...stRef.current!,
             pomodoro: { mode: next, status: "paused", endAt: null, remainingMs: durationMs(next, cur.durations), cycles, taskId },
           });
+          resolvingEndAtRef.current = null;
           return;
         }
         mode = next;
@@ -297,6 +303,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
             ...stRef.current!,
             pomodoro: { mode: "focus", status: "paused", endAt: null, remainingMs: durationMs("focus", cur.durations), cycles, taskId },
           });
+          resolvingEndAtRef.current = null;
           return;
         }
         mode = "focus";
@@ -310,6 +317,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
         ...stRef.current!,
         pomodoro: { mode: "focus", status: "paused", endAt: null, remainingMs: durationMs("focus", cur.durations), cycles, taskId },
       });
+      resolvingEndAtRef.current = null;
       return;
     }
 
@@ -317,6 +325,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       ...stRef.current!,
       pomodoro: { mode, status: "running", endAt, remainingMs: null, cycles, taskId },
     });
+    resolvingEndAtRef.current = null;
   }, [credit, durationMs, persist]);
 
   /* ------------------------------ TICK --------------------------------- */
@@ -427,27 +436,39 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     const cur = stRef.current;
     if (!cur) return;
     const p = cur.pomodoro;
+    if (p.status === "running" && p.endAt !== null && p.endAt <= Date.now()) {
+      void resolvePomodoro();
+      return;
+    }
     bankPartialFocus(cur);
     persist({
       ...cur,
       pomodoro: { ...p, status: "idle", endAt: null, remainingMs: null },
     });
-  }, [persist, bankPartialFocus]);
+  }, [persist, bankPartialFocus, resolvePomodoro]);
 
   const pSetMode = useCallback((mode: Mode) => {
     const cur = stRef.current;
     if (!cur) return;
+    if (cur.pomodoro.status === "running" && cur.pomodoro.endAt !== null && cur.pomodoro.endAt <= Date.now()) {
+      void resolvePomodoro();
+      return;
+    }
     if (mode !== "focus") bankPartialFocus(cur);
     persist({
       ...cur,
       pomodoro: { ...cur.pomodoro, mode, status: "idle", endAt: null, remainingMs: null },
     });
-  }, [persist, bankPartialFocus]);
+  }, [persist, bankPartialFocus, resolvePomodoro]);
 
   const pSkip = useCallback(() => {
     const cur = stRef.current;
     if (!cur) return;
     const p = cur.pomodoro;
+    if (p.status === "running" && p.endAt !== null && p.endAt <= Date.now()) {
+      void resolvePomodoro();
+      return;
+    }
     const banked = bankPartialFocus(cur);
     const next: Mode = p.mode === "focus" ? (p.cycles + 1) % 4 === 0 ? "long" : "short" : "focus";
     persist({
@@ -462,7 +483,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       },
     });
     setMsLeft(durationMs(next, cur.durations));
-  }, [persist, durationMs, bankPartialFocus]);
+  }, [persist, durationMs, bankPartialFocus, resolvePomodoro]);
 
   const pSetTask = useCallback((id: number | null) => {
     const cur = stRef.current;

@@ -4,6 +4,7 @@ import { getSessionUser } from "@/lib/auth";
 import { Sidebar } from "@/components/sidebar";
 import { TimerProvider } from "@/components/timer-provider";
 import { CommandPalette } from "@/components/command-palette";
+import { RotatingGuidance } from "@/components/rotating-guidance";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const user = await getSessionUser();
@@ -17,7 +18,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         <Sidebar user={user} />
         <CommandPalette isAdmin={user.role === "admin"} username={user.username} />
         <main className="relative px-4 pb-16 pt-28 sm:px-7 lg:pl-[17.5rem] lg:pt-9">
-          <div className="mx-auto max-w-5xl animate-fade-up">{children}</div>
+          <div className="mx-auto max-w-6xl animate-fade-up">
+            <RotatingGuidance />
+            {children}
+          </div>
         </main>
       </TimerProvider>
     </div>

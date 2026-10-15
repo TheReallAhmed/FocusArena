@@ -124,8 +124,8 @@ export default async function DashboardPage() {
       </div>
 
       {/* Chart + quote */}
-      <div className="grid gap-4 lg:grid-cols-5">
-        <div className="glass-card p-5 lg:col-span-3">
+      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-5">
+        <div className="glass-card p-5 xl:col-span-3">
           <div className="mb-4 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5">
               <h2 className="text-sm font-bold text-white">Last 7 days</h2>
@@ -143,7 +143,7 @@ export default async function DashboardPage() {
           <WeekChart data={week} />
         </div>
 
-        <div className="glass-card flex flex-col justify-between gap-5 p-5 lg:col-span-2">
+        <div className="glass-card flex flex-col justify-between gap-5 p-5 xl:col-span-2">
           <div>
             <div className="flex items-center gap-2 text-brand-300">
               <Quote size={15} />
@@ -159,9 +159,9 @@ export default async function DashboardPage() {
       </div>
 
       {/* Goal + report card + Arena Pulse */}
-      <div className="grid gap-4 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <GoalCard todayMinutes={data.todayMinutes} goal={user.dailyGoal} />
-        <div className="lg:col-span-1">
+        <div>
           <WeeklyReport
             weekTotal={data.weekTotal}
             weekGoal={user.dailyGoal * 7}
@@ -171,7 +171,7 @@ export default async function DashboardPage() {
           />
         </div>
 
-        <div className="glass-card p-5 lg:col-span-2">
+        <div className="glass-card p-5 sm:col-span-2 xl:col-span-2">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-sm font-bold text-white">
               <Radio size={15} className="text-neon-400" /> Arena pulse
