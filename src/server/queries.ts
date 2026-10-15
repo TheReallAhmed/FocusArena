@@ -1,10 +1,11 @@
 import { and, eq, gte, lte, desc, asc, sql, count, sum, isNotNull, ne } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  users, tasks, focusSessions, squads, squadMembers, userBadges, rooms, roomMembers, type User,
+  users, tasks, focusSessions, focusSessionRuns, sessionCommitments, squads, squadMembers, userBadges, rooms, roomMembers, type User,
 } from "@/db/schema";
 import { dayKey, weekStartKey, lastNDays } from "@/lib/dates";
 import { badgeByKey } from "@/lib/xp";
+import { commitmentFulfillment, energyOutcomeStats } from "@/lib/accountability-metrics";
 
 export type WeekPoint = { day: string; label: string; minutes: number; isToday: boolean };
 
@@ -80,6 +81,9 @@ export type LeaderRow = {
   role: string;
   avatarHue: number;
   avatarUrl: string | null;
+  equippedTitle: string | null;
+  equippedFrame: string | null;
+  accountabilityActive: boolean;
   streak: number;
   minutes: number;
   badges: number;
@@ -93,6 +97,12 @@ const userCols = {
   role: users.role,
   avatarHue: users.avatarHue,
   avatarUrl: users.avatarUrl,
+  equippedTitle: users.equippedTitle,
+  equippedFrame: users.equippedFrame,
+  accountabilityActive: sql<boolean>`(${users.publicAccountability} and exists (
+    select 1 from ${sessionCommitments} sc
+    where sc.user_id = ${users.id} and sc.status = 'broken' and sc.accountability_expires_at > now()
+  ))`,
   streak: users.streak,
 };
 
@@ -230,13 +240,104 @@ export async function getSessionHistory(user: User, project?: string | null, lim
       note: focusSessions.note,
       roomId: focusSessions.roomId,
       task: tasks.title,
+      energyRating: focusSessions.energyRating,
+      focusQuality: focusSessions.focusQuality,
+      verificationStatus: focusSessions.verificationStatus,
+      completedAt: focusSessions.completedAt,
+      intendedOutcome: sessionCommitments.intendedOutcome,
+      consequence: sessionCommitments.consequence,
+      commitmentStatus: sessionCommitments.status,
+      commitmentResolvedAt: sessionCommitments.resolvedAt,
     })
     .from(focusSessions)
     .leftJoin(tasks, eq(focusSessions.taskId, tasks.id))
+    .leftJoin(sessionCommitments, and(eq(sessionCommitments.runKey, focusSessions.runKey), eq(sessionCommitments.userId, user.id)))
     .where(and(...conds))
     .orderBy(desc(focusSessions.startedAt))
     .limit(limit);
   return rows;
+}
+
+export async function getCommitmentHistory(user: User, limit = 50) {
+  return db.select({
+    runKey: sessionCommitments.runKey,
+    intendedOutcome: sessionCommitments.intendedOutcome,
+    consequence: sessionCommitments.consequence,
+    status: sessionCommitments.status,
+    createdAt: sessionCommitments.createdAt,
+    resolvedAt: sessionCommitments.resolvedAt,
+    plannedMinutes: focusSessionRuns.plannedMinutes,
+    runStatus: focusSessionRuns.status,
+    startedAt: focusSessionRuns.startedAt,
+    endedAt: focusSessionRuns.endedAt,
+  }).from(sessionCommitments)
+    .innerJoin(focusSessionRuns, eq(focusSessionRuns.runKey, sessionCommitments.runKey))
+    .where(and(eq(sessionCommitments.userId, user.id), eq(focusSessionRuns.userId, user.id)))
+    .orderBy(desc(sessionCommitments.createdAt)).limit(limit);
+}
+
+/** Private user-only summaries; no commitment text or energy history enters public queries. */
+export async function getPersonalFocusInsights(user: User) {
+  const rows = await db.select({
+    energyRating: focusSessions.energyRating,
+    minutes: focusSessions.minutes,
+    focusQuality: focusSessions.focusQuality,
+    verificationStatus: focusSessions.verificationStatus,
+    startedAt: focusSessions.startedAt,
+  }).from(focusSessions)
+    .where(eq(focusSessions.userId, user.id))
+    .orderBy(desc(focusSessions.startedAt)).limit(1000);
+  const commitmentAgg = await db.execute(sql`
+    select
+      count(*) filter (where status = 'fulfilled')::int as fulfilled,
+      count(*) filter (where status = 'broken')::int as broken,
+      count(*) filter (where status = 'unresolved')::int as unresolved
+    from ${sessionCommitments} where user_id = ${user.id}
+  `);
+  const c = (commitmentAgg.rows[0] ?? {}) as Record<string, unknown>;
+  const countValue = (value: unknown) => Number(value ?? 0);
+  const verification = rows.reduce((acc, row) => {
+    const status = row.verificationStatus;
+    if (status === "verified") acc.verified++;
+    else if (status === "partially_verified") acc.partial++;
+    else if (status === "unverified" || status === "unavailable") acc.unverified++;
+    return acc;
+  }, { verified: 0, partial: 0, unverified: 0 });
+  const energy = energyOutcomeStats(rows.map((row) => ({ energyRating: row.energyRating, minutes: row.minutes, focusQuality: row.focusQuality })));
+  const endedRuns = await db.select({ energyRating: focusSessionRuns.energyRating, status: focusSessionRuns.status })
+    .from(focusSessionRuns)
+    .where(and(eq(focusSessionRuns.userId, user.id), ne(focusSessionRuns.status, "active")))
+    .orderBy(desc(focusSessionRuns.startedAt)).limit(1000);
+  const completionByEnergy = [1, 2, 3, 4, 5].map((rating) => {
+    const group = endedRuns.filter((run) => run.energyRating === rating);
+    const completed = group.filter((run) => run.status === "completed").length;
+    return { rating, attempts: group.length, completed, percentage: group.length ? Math.round((completed / group.length) * 100) : null };
+  });
+  const byUtcHour = new Map<number, { count: number; minutes: number }>();
+  const byUtcWeekday = new Map<number, { count: number; minutes: number }>();
+  for (const row of rows) {
+    if (row.energyRating === null) continue;
+    const hour = row.startedAt.getUTCHours();
+    const weekday = row.startedAt.getUTCDay();
+    const h = byUtcHour.get(hour) ?? { count: 0, minutes: 0 }; h.count++; h.minutes += row.minutes; byUtcHour.set(hour, h);
+    const d = byUtcWeekday.get(weekday) ?? { count: 0, minutes: 0 }; d.count++; d.minutes += row.minutes; byUtcWeekday.set(weekday, d);
+  }
+  const pattern = (map: Map<number, { count: number; minutes: number }>) => [...map.entries()].map(([key, value]) => ({ key, count: value.count, averageMinutes: Math.round((value.minutes / value.count) * 10) / 10 }));
+  const hourPatterns = pattern(byUtcHour);
+  const weekdayPatterns = pattern(byUtcWeekday);
+  const bestUtcHour = hourPatterns.filter((item) => item.count >= 3).sort((a, b) => b.averageMinutes - a.averageMinutes)[0] ?? null;
+  const bestUtcWeekday = weekdayPatterns.filter((item) => item.count >= 3).sort((a, b) => b.averageMinutes - a.averageMinutes)[0] ?? null;
+  return {
+    commitments: { ...commitmentFulfillment(countValue(c.fulfilled), countValue(c.broken)), unresolved: countValue(c.unresolved) },
+    energy,
+    completionByEnergy,
+    verification,
+    byUtcHour: hourPatterns,
+    byUtcWeekday: weekdayPatterns,
+    bestUtcHour,
+    bestUtcWeekday: bestUtcWeekday ? { ...bestUtcWeekday, label: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][bestUtcWeekday.key] } : null,
+    sampleSessions: rows.length,
+  };
 }
 
 export async function getProjectBreakdown(user: User, limit = 8): Promise<ProjectStat[]> {

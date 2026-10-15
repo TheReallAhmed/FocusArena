@@ -7,10 +7,10 @@ import {
 } from "lucide-react";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
-import { getDashboardData, getLeaderboard } from "@/server/queries";
+import { getDashboardData, getLeaderboard, getPersonalFocusInsights } from "@/server/queries";
 import { getArenaPulse, getWeekDelta, type PulseItem } from "@/server/insights";
 import { getDailyQuote } from "@/lib/quote";
-import { StatCard, WeekChart, BadgeIcon, Avatar, AdminChip } from "@/components/widgets";
+import { StatCard, WeekChart, BadgeIcon, Avatar, AdminChip, PerkTitleBadge } from "@/components/widgets";
 import { GoalCard } from "@/components/goal-card";
 import { WeeklyReport } from "@/components/weekly-report";
 import { LiveRefresh } from "@/components/live-refresh";
@@ -53,11 +53,12 @@ export default async function DashboardPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const [data, quote, pulse, top3] = await Promise.all([
+  const [data, quote, pulse, top3, insights] = await Promise.all([
     getDashboardData(user),
     getDailyQuote(),
     getArenaPulse(14),
     getLeaderboard("week", 3),
+    getPersonalFocusInsights(user),
   ]);
   const delta = await getWeekDelta(user, data.weekTotal);
 
@@ -121,6 +122,54 @@ export default async function DashboardPage() {
         <StatCard icon={CalendarRange} label="This week" value={fmtMinutes(data.weekTotal)} sub="Monday → today" hue={190} />
         <StatCard icon={Sigma} label="All time" value={fmtMinutes(user.xp)} sub={`${data.totalSessions} sessions total`} hue={150} />
         <StatCard icon={Zap} label="Total XP" value={String(user.xp)} sub={`Level ${prog.level} · ${data.earnedBadges.length}/${BADGES.length} badges`} hue={45} />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <section className="glass-card p-5" aria-label="Commitment outcomes">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-bold text-white">Commitment follow-through</h2>
+            <span className="chip !text-[0.62rem]">Private</span>
+          </div>
+          <p className="tnum mt-3 text-2xl font-black text-white">{insights.commitments.percentage === null ? "—" : `${insights.commitments.percentage}%`}</p>
+          <p className="mt-1 text-xs text-[#8f8cb0]">{insights.commitments.fulfilled} fulfilled out of {insights.commitments.resolved} resolved commitments</p>
+          <p className="mt-1 text-[0.68rem] text-[#6d6a8f]">{insights.commitments.broken} self-reported not fulfilled · {insights.commitments.unresolved} unresolved</p>
+          <Link href="/history" className="mt-3 inline-flex text-xs font-semibold text-brand-300 hover:text-brand-200">Review your history →</Link>
+        </section>
+
+        <section className="glass-card p-5" aria-label="Energy and focus duration">
+          <h2 className="text-sm font-bold text-white">Energy & focus outcomes</h2>
+          <p className="mt-1 text-[0.65rem] text-[#6d6a8f]">By energy: completed-round duration, logged quality and ended-round completion rate.</p>
+          <div className="mt-4 space-y-2">
+            {insights.energy.byEnergy.map((bucket) => {
+              const max = Math.max(1, ...insights.energy.byEnergy.map((item) => item.count));
+              const completion = insights.completionByEnergy.find((item) => item.rating === bucket.rating);
+              return <div key={bucket.rating} className="grid grid-cols-[2.5rem_1fr_4.7rem] items-center gap-2 text-[0.68rem]">
+                <span className="text-[#8f8cb0]">{bucket.rating}/5</span>
+                <div className="h-1.5 overflow-hidden rounded-full bg-white/8"><div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-neon-400" style={{ width: `${Math.max(bucket.count ? 5 : 0, Math.round((bucket.count / max) * 100))}%` }} /></div>
+                <span title={`Average quality: ${bucket.averageQuality ?? "not available"}. Ended tracked rounds completed: ${completion?.completed ?? 0}/${completion?.attempts ?? 0}.`} className="tnum text-right text-[#a5a2c8]">{bucket.averageMinutes === null ? "—" : `${bucket.averageMinutes}m`} · Q{bucket.averageQuality ?? "—"}</span>
+              </div>;
+            })}
+          </div>
+          <p className="mt-2 text-[0.6rem] text-[#6d6a8f]">Bars = completed rated sessions · Q = average focus quality · completion (done/ended): {insights.completionByEnergy.map((item) => `${item.rating}:${item.completed}/${item.attempts}`).join(" · ")}</p>
+          <p className="mt-3 text-[0.65rem] leading-relaxed text-[#6d6a8f]">
+            {insights.energy.highVsLowRatio === null
+              ? `Need at least ${insights.energy.minimumSample} sessions in both low- and high-energy groups for a comparison.`
+              : `Observed association: high-energy rounds averaged ${insights.energy.highVsLowRatio}× the duration of low-energy rounds (n=${insights.energy.highSample} vs ${insights.energy.lowSample}); this is not causal.`}
+          </p>
+          {(insights.bestUtcHour || insights.bestUtcWeekday) && <p className="mt-2 border-t border-line pt-2 text-[0.63rem] text-[#6d6a8f]">Observed longer-session periods (UTC, n≥3): {insights.bestUtcHour && `${String(insights.bestUtcHour.key).padStart(2, "0")}:00 hour · `}{insights.bestUtcWeekday && `${insights.bestUtcWeekday.label} (${insights.bestUtcWeekday.count} sessions)`}</p>}
+        </section>
+
+        <section className="glass-card p-5" aria-label="Verification and XP balance">
+          <h2 className="text-sm font-bold text-white">Accountability tools</h2>
+          <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-xl border border-line bg-white/[0.02] p-2"><p className="tnum text-lg font-bold text-mint-300">{insights.verification.verified}</p><p className="text-[0.58rem] text-[#6d6a8f]">verified</p></div>
+            <div className="rounded-xl border border-line bg-white/[0.02] p-2"><p className="tnum text-lg font-bold text-gold-300">{insights.verification.partial}</p><p className="text-[0.58rem] text-[#6d6a8f]">partial</p></div>
+            <div className="rounded-xl border border-line bg-white/[0.02] p-2"><p className="tnum text-lg font-bold text-[#a5a2c8]">{insights.verification.unverified}</p><p className="text-[0.58rem] text-[#6d6a8f]">unverified</p></div>
+          </div>
+          <p className="mt-3 text-[0.68rem] text-[#6d6a8f]">Attention prompts are optional and do not prove continuous focus.</p>
+          <div className="mt-3 flex items-center justify-between border-t border-line pt-3"><span className="text-xs text-[#8f8cb0]">Spendable XP</span><span className="tnum text-sm font-bold text-gold-300">{user.xpBalance.toLocaleString()}</span></div>
+          <Link href="/settings/profile" className="mt-2 inline-flex text-xs font-semibold text-brand-300 hover:text-brand-200">Visit the XP perks store →</Link>
+        </section>
       </div>
 
       {/* Chart + quote */}
@@ -238,10 +287,11 @@ export default async function DashboardPage() {
                     <span className={`tnum w-4 text-sm font-black ${i === 0 ? "text-gold-400" : i === 1 ? "text-[#c7c4de]" : "text-[#e08a4c]"}`}>
                       {i + 1}
                     </span>
-                    <Avatar name={r.displayName} hue={r.avatarHue} imageUrl={r.avatarUrl} size={30} />
+                    <Avatar name={r.displayName} hue={r.avatarHue} imageUrl={r.avatarUrl} frameKey={r.equippedFrame} size={30} />
                     <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-sm font-semibold text-white">
                       {r.displayName}
                       {r.role === "admin" && <AdminChip small />}
+                      <PerkTitleBadge rewardKey={r.equippedTitle} />
                     </span>
                     <span className="hidden sm:flex"><BadgeRail keys={r.badgeKeys} total={r.badges} max={3} size={19} /></span>
                     <span className="tnum text-xs font-bold text-[#a5a2c8]">{fmtMinutes(Number(r.minutes))}</span>

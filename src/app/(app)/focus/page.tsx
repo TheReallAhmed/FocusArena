@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { getFocusContext, getRecentProjects } from "@/server/queries";
 import { FocusTimer } from "@/components/focus-timer";
+import { CommitmentReview } from "@/components/commitment-review";
 
 export const metadata: Metadata = { title: "Focus" };
 export const dynamic = "force-dynamic";
@@ -23,14 +24,17 @@ export default async function FocusPage({
   const initialTaskId = activeTasks.some((t) => t.id === taskParam) ? taskParam : null;
 
   return (
-    <FocusTimer
-      tasks={activeTasks}
-      initialTaskId={initialTaskId}
-      doneToday={doneToday}
-      displayName={user.displayName}
-      todayMinutes={todayMinutes}
-      dailyGoal={user.dailyGoal}
-      recentProjects={recentProjects}
-    />
+    <div className="space-y-4">
+      <CommitmentReview />
+      <FocusTimer
+        tasks={activeTasks}
+        initialTaskId={initialTaskId}
+        doneToday={doneToday}
+        displayName={user.displayName}
+        todayMinutes={todayMinutes}
+        dailyGoal={user.dailyGoal}
+        recentProjects={recentProjects}
+      />
+    </div>
   );
 }

@@ -31,16 +31,16 @@
 
 ## Database migration
 
-The additive migration is `migrations/0001_focusarena_features.sql`. It adds nullable quality/run/timestamp fields to `focus_sessions`, then creates the run, distraction, duel, and journal tables with indexes, foreign keys, uniqueness constraints, and validation constraints. Existing session rows are preserved; older, untracked sessions remain without a historical quality score.
+The additive migrations are `migrations/0001_focusarena_features.sql` and `migrations/0002_commitment_energy_verification_perks.sql`. Migration 0002 adds private commitments, energy and proof-check fields, a transactional cosmetic inventory, public-consent and equipped-cosmetic fields, and a separate spendable XP balance. The XP balance is backfilled once from historical XP; future earned XP increments both balances, while purchases debit only the spendable balance. Progress levels, badges, and the existing leaderboard score therefore do not decrease after a purchase.
 
-Apply it **once against the intended development database after confirming `DATABASE_URL` points to that database**, using PostgreSQL's `psql` client from PowerShell:
+Apply migrations against the intended database after confirming `DATABASE_URL` points to that database. If migration 0001 has not already been applied, run it first; then run 0002 from PowerShell:
 
 ```powershell
-psql $env:DATABASE_URL -v ON_ERROR_STOP=1 -f .\migrations\0001_focusarena_features.sql
+psql $env:DATABASE_URL -v ON_ERROR_STOP=1 -f .\migrations\0002_commitment_energy_verification_perks.sql
 ```
 
-The migration was not run during this code change, so no shared or production database was modified. After applying it, run the application and exercise a focus round, duel invitation/acceptance, and journal save against the configured database. No new paid service, third-party API, external asset, or environment variable is required.
+Migration 0002 was applied to the PostgreSQL database configured in the local `.env` and verified for the expected tables and columns during this task. The database URL was not printed. No other production/shared database was assumed. No new paid service, third-party API, external asset, or environment variable is required.
 
 ## Verification scope and limitations
 
-Automated unit coverage is in `tests/feature-metrics.test.mjs` for score bounds, zero-duration analytics, duel winner/ties, streak rules, and local-day/time-zone boundaries (including a daylight-saving transition). Service/authorization behavior uses the existing authenticated server actions and database constraints; these require a configured PostgreSQL database for end-to-end integration testing. Genuine attention cannot be independently verified by this application, so the quality metric must remain a self-reported proxy rather than a claim of cheat-proof measurement.
+Automated unit coverage is in `tests/feature-metrics.test.mjs` for score bounds, zero-duration analytics, duel winner/ties, streak rules, local-day/time-zone boundaries, commitment denominators, energy sample thresholds, and verification status. Commitment text and energy answers are private. Fulfillment is self-reported; unresolved, abandoned, and cancelled rounds are excluded from the fulfillment denominator. Public accountability is off by default and, if opted into, exposes only a 24-hour indicator after a self-reported broken commitment. An attention check is optional, schedules at most one server-timed prompt in a tracked focus round of at least 15 minutes, and requires an active online client to poll; a missed response is not proof of cheating or uninterrupted inattention. These product signals are aids, not clinical or fraud-detection measurements.

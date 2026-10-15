@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { getProfile } from "@/server/queries";
-import { Avatar, AdminChip, LevelChip, BadgeIcon } from "@/components/widgets";
+import { Avatar, AdminChip, LevelChip, BadgeIcon, PerkTitleBadge } from "@/components/widgets";
 import { ContributionGrid } from "@/components/contribution-grid";
 import { BADGES, levelProgress, TIER_META, sortByRarity, badgeScore, badgeProgress } from "@/lib/xp";
 import { BadgeChip } from "@/components/badge-rail";
@@ -46,7 +46,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
         />
         <div className="relative flex flex-wrap items-center gap-5 sm:gap-7">
           <span className="relative">
-            <Avatar name={user.displayName} hue={user.avatarHue} imageUrl={user.avatarUrl} size={92} />
+            <Avatar name={user.displayName} hue={user.avatarHue} imageUrl={user.avatarUrl} frameKey={user.equippedFrame} size={92} />
             {user.streak >= 7 && (
               <span className="absolute -bottom-2 -right-2 flex h-8 w-8 items-center justify-center rounded-full border-2 border-ink-900 bg-gold-400 text-ink-950">
                 <Flame size={15} strokeWidth={2.5} />
@@ -57,6 +57,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
             <h1 className="flex flex-wrap items-center gap-2.5 text-2xl font-bold tracking-tight text-white sm:text-3xl">
               {user.displayName}
               {user.role === "admin" && <AdminChip />}
+              <PerkTitleBadge rewardKey={user.equippedTitle} />
               {isMe && <span className="chip !text-[0.65rem] text-brand-300">this is you</span>}
             </h1>
             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[#8f8cb0]">

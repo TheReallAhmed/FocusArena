@@ -4,6 +4,11 @@ import { Sparkles } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { ProfileEditor } from "@/components/profile-editor";
 import { DeveloperCard } from "@/components/developer-card";
+import { PerksStore } from "@/components/perks-store";
+import { AccountabilitySettings } from "@/components/accountability-settings";
+import { db } from "@/db";
+import { userPerks } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 export const metadata: Metadata = { title: "Edit profile" };
 export const dynamic = "force-dynamic";
@@ -11,6 +16,7 @@ export const dynamic = "force-dynamic";
 export default async function EditProfilePage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  const owned = await db.select({ rewardKey: userPerks.rewardKey }).from(userPerks).where(eq(userPerks.userId, user.id));
 
   return (
     <div className="space-y-5">
@@ -26,6 +32,8 @@ export default async function EditProfilePage() {
         </p>
       </div>
       <ProfileEditor user={user} />
+      <PerksStore xpBalance={user.xpBalance} ownedKeys={owned.map((item) => item.rewardKey)} equippedTitle={user.equippedTitle} equippedFrame={user.equippedFrame} />
+      <AccountabilitySettings initialEnabled={user.publicAccountability} />
       <DeveloperCard apiKey={user.apiKey} />
     </div>
   );

@@ -7,7 +7,7 @@ import {
   LoaderCircle, MapPin, Save, Trash2, UserRound,
 } from "lucide-react";
 import { updateProfileAction, type ProfileState } from "@/server/actions";
-import { Avatar } from "@/components/widgets";
+import { Avatar, PerkTitleBadge } from "@/components/widgets";
 import type { User } from "@/db/schema";
 
 const MAX_SOURCE_BYTES = 10 * 1024 * 1024;
@@ -100,7 +100,7 @@ export function ProfileEditor({ user }: { user: User }) {
         <div className="relative flex flex-col items-center text-center">
           <p className="text-[0.65rem] font-bold uppercase tracking-[0.25em] text-brand-300">Profile picture</p>
           <div className="relative mt-6">
-            <Avatar name={user.displayName} hue={user.avatarHue} imageUrl={avatar} size={150} ring />
+            <Avatar name={user.displayName} hue={user.avatarHue} imageUrl={avatar} size={150} ring frameKey={user.equippedFrame} />
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
@@ -120,6 +120,7 @@ export function ProfileEditor({ user }: { user: User }) {
           />
 
           <h2 className="mt-5 text-lg font-bold text-white">{user.displayName}</h2>
+          <div className="mt-1"><PerkTitleBadge rewardKey={user.equippedTitle} /></div>
           <p className="text-xs text-[#6d6a8f]">@{user.username}</p>
 
           <div className="mt-5 flex flex-wrap justify-center gap-2.5">

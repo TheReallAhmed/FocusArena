@@ -1,10 +1,11 @@
 import { and, eq, count, sum, isNotNull, sql, lt, gt, ne, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  users, tasks, focusSessions, focusSessionRuns, distractionEvents, squads, squadMembers, userBadges, rooms, type User,
+  users, tasks, focusSessions, focusSessionRuns, distractionEvents, sessionCommitments, proofChallenges, squads, squadMembers, userBadges, rooms, type User,
 } from "@/db/schema";
 import { BADGES, levelFromXp, type BadgeStats } from "@/lib/xp";
 import { calculateFocusQuality } from "@/lib/feature-metrics";
+import { verificationStatus } from "@/lib/accountability-metrics";
 import { dayKey, addDays } from "@/lib/dates";
 
 export type EarnedBadge = {
@@ -191,6 +192,8 @@ export async function creditFocusSession(
     let creditedMinutes = minutes;
     let validRunKey: string | null = null;
     let quality: number | null = null;
+    let energyRating: number | null = null;
+    let verification: string | null = null;
     let focusStartedAt = now;
 
     if (input.runKey) {
@@ -224,6 +227,14 @@ export async function creditFocusSession(
       const [eventCount] = await tx.select({ value: count() }).from(distractionEvents)
         .where(and(eq(distractionEvents.runKey, input.runKey), eq(distractionEvents.userId, user.id)));
       quality = calculateFocusQuality(eventCount.value);
+      energyRating = run.energyRating;
+      const [challenge] = await tx.select().from(proofChallenges)
+        .where(and(eq(proofChallenges.runKey, input.runKey), eq(proofChallenges.userId, user.id))).limit(1);
+      if (challenge && challenge.status !== "answered") {
+        await tx.update(proofChallenges).set({ status: "missed" })
+          .where(and(eq(proofChallenges.runKey, input.runKey), eq(proofChallenges.userId, user.id), ne(proofChallenges.status, "answered")));
+      }
+      verification = verificationStatus(run.verificationEnabled, challenge ? 1 : 0, challenge?.status === "answered" ? 1 : 0);
       validRunKey = input.runKey;
       focusStartedAt = run.startedAt;
       creditedMinutes = run.plannedMinutes;
@@ -240,6 +251,8 @@ export async function creditFocusSession(
       runKey: validRunKey,
       focusQuality: quality,
       focusQualityVersion: validRunKey ? 1 : null,
+      energyRating,
+      verificationStatus: validRunKey ? verification : null,
       startedAt: focusStartedAt,
       completedAt: now,
     }).onConflictDoNothing({ target: focusSessions.runKey }).returning({ id: focusSessions.id });
@@ -251,7 +264,7 @@ export async function creditFocusSession(
     const yesterday = addDays(day, -1);
     const streak = current.lastFocusDay === day ? current.streak : current.lastFocusDay === yesterday ? current.streak + 1 : 1;
     const xp = current.xp + creditedMinutes;
-    await tx.update(users).set({ xp, streak, lastFocusDay: day }).where(eq(users.id, user.id));
+    await tx.update(users).set({ xp, xpBalance: current.xpBalance + creditedMinutes, streak, lastFocusDay: day }).where(eq(users.id, user.id));
 
     if (taskId) {
       const rows = await tx.select({ focusMinutes: tasks.focusMinutes }).from(tasks).where(eq(tasks.id, taskId)).limit(1);
@@ -260,6 +273,8 @@ export async function creditFocusSession(
     if (validRunKey) {
       await tx.update(focusSessionRuns).set({ status: "completed", focusSessionId: inserted[0].id, endedAt: now })
         .where(and(eq(focusSessionRuns.runKey, validRunKey), eq(focusSessionRuns.userId, user.id)));
+      await tx.update(sessionCommitments).set({ status: "unresolved" })
+        .where(and(eq(sessionCommitments.runKey, validRunKey), eq(sessionCommitments.userId, user.id), eq(sessionCommitments.status, "pending")));
     }
     return { duplicate: false as const, gained: creditedMinutes, xp, streak, leveledUp: levelFromXp(xp) > previousLevel };
   });

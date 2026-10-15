@@ -86,7 +86,7 @@ export function Sidebar({ user }: { user: User }) {
             href={`/u/${user.username}`}
             className="mb-1 flex items-center gap-3 rounded-xl border border-line bg-white/[0.03] px-3 py-2.5 transition hover:border-white/20"
           >
-            <Avatar name={user.displayName} hue={user.avatarHue} imageUrl={user.avatarUrl} size={34} />
+            <Avatar name={user.displayName} hue={user.avatarHue} imageUrl={user.avatarUrl} frameKey={user.equippedFrame} size={34} />
             <div className="min-w-0 flex-1">
               <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-white">
                 {user.displayName}
@@ -108,7 +108,7 @@ export function Sidebar({ user }: { user: User }) {
           <div className="flex items-center gap-2.5">
             {isAdmin ? <AdminChip small /> : <LevelChip level={level} small />}
             <Link href={`/u/${user.username}`}>
-              <Avatar name={user.displayName} hue={user.avatarHue} imageUrl={user.avatarUrl} size={30} />
+              <Avatar name={user.displayName} hue={user.avatarHue} imageUrl={user.avatarUrl} frameKey={user.equippedFrame} size={30} />
             </Link>
           </div>
         </div>

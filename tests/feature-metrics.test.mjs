@@ -6,6 +6,7 @@ import {
   duelWinner,
   journalStreakStats,
 } from "../src/lib/feature-metrics.ts";
+import { commitmentFulfillment, energyOutcomeStats, verificationStatus } from "../src/lib/accountability-metrics.ts";
 import { isValidTimeZone, localDayInTimeZone } from "../src/lib/time-zones.ts";
 
 test("focus quality v1 is deterministic and bounded", () => {
@@ -44,4 +45,32 @@ test("journal calendar dates honor IANA time zones at UTC and daylight-saving bo
   assert.equal(localDayInTimeZone(new Date("2026-03-08T08:30:00.000Z"), "America/Los_Angeles"), "2026-03-08");
   assert.equal(isValidTimeZone("America/Los_Angeles"), true);
   assert.equal(isValidTimeZone("Not/AZone"), false);
+});
+
+test("commitment fulfillment excludes unresolved or cancelled rows by using resolved counts only", () => {
+  assert.deepEqual(commitmentFulfillment(3, 1), { fulfilled: 3, broken: 1, resolved: 4, percentage: 75 });
+  assert.deepEqual(commitmentFulfillment(0, 0), { fulfilled: 0, broken: 0, resolved: 0, percentage: null });
+});
+
+test("energy insights require a minimum sample and compare real average durations", () => {
+  const rows = [
+    { energyRating: 1, minutes: 20 }, { energyRating: 1, minutes: 30 }, { energyRating: 2, minutes: 40 },
+    { energyRating: 4, minutes: 40 }, { energyRating: 5, minutes: 60 }, { energyRating: 5, minutes: 80 },
+    { energyRating: 9, minutes: 500 }, { energyRating: null, minutes: 100 },
+  ];
+  const stats = energyOutcomeStats(rows, 3);
+  assert.equal(stats.highVsLowRatio, 2);
+  assert.equal(stats.highSample, 3);
+  assert.equal(stats.lowSample, 3);
+  assert.equal(stats.byEnergy[0].enoughData, false);
+  assert.equal(stats.byEnergy[3].averageMinutes, 40);
+  assert.equal(stats.byEnergy[3].enoughData, false);
+});
+
+test("optional proof-of-work statuses are bounded and do not treat missed checks as cheating", () => {
+  assert.equal(verificationStatus(false, 0, 0), "not_enabled");
+  assert.equal(verificationStatus(true, 0, 0), "unverified");
+  assert.equal(verificationStatus(true, 1, 1), "verified");
+  assert.equal(verificationStatus(true, 2, 1), "partially_verified");
+  assert.equal(verificationStatus(true, 1, 0, true), "unavailable");
 });

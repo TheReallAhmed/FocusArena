@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useTimer } from "@/components/timer-provider";
 import { toggleTaskAction } from "@/server/actions";
+import { getActiveCommitmentAction } from "@/server/distractions";
 import { fmtClock } from "@/lib/dates";
 import { BadgeIcon } from "@/components/widgets";
 import { ProjectPicker } from "@/components/project-picker";
@@ -17,6 +18,7 @@ import { DistractionTrap } from "@/components/distraction-trap";
 
 type Mode = "focus" | "short" | "long";
 type TaskLite = { id: number; title: string; priority: string };
+type ActiveCommitmentState = { runKey: string; details: NonNullable<Awaited<ReturnType<typeof getActiveCommitmentAction>>> } | null;
 
 const MODE_META: Record<Mode, { label: string; a: string; b: string; chip: string }> = {
   focus: { label: "Focus", a: "#7c6cff", b: "#4ce3ff", chip: "text-brand-300" },
@@ -55,6 +57,7 @@ export function FocusTimer({
   const [xpPop, setXpPop] = useState<number | null>(null);
   const [saving, startSave] = useTransition();
   const [prevGained, setPrevGained] = useState<number | null>(null);
+  const [activeCommitment, setActiveCommitment] = useState<ActiveCommitmentState>(null);
   const resultRef = useRef(lastResult);
   const seededRef = useRef(false);
 
@@ -67,6 +70,13 @@ export function FocusTimer({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!runKey || mode !== "focus") return;
+    let current = true;
+    void getActiveCommitmentAction(runKey).then((row) => { if (current && row) setActiveCommitment({ runKey, details: row }); }).catch(() => undefined);
+    return () => { current = false; };
+  }, [runKey, mode]);
 
   /* react to freshly-banked rounds */
   useEffect(() => {
@@ -322,6 +332,16 @@ export function FocusTimer({
         )}
 
         {ring("mt-4 max-w-[400px]")}
+
+        {/* today goal chip */}
+        {activeCommitment?.runKey === runKey && activeCommitment.details && runStatus !== "idle" && (
+          <div className="relative mx-auto mt-3 max-w-lg rounded-xl border border-brand-500/25 bg-brand-500/[0.06] px-4 py-3 text-center">
+            <p className="text-[0.62rem] font-bold uppercase tracking-[0.16em] text-brand-300">Your commitment · private</p>
+            <p className="mt-1 text-sm font-semibold text-white">{activeCommitment.details.intendedOutcome}</p>
+            {activeCommitment.details.consequence && <p className="mt-1 text-[0.68rem] text-[#8f8cb0]">Personal consequence: {activeCommitment.details.consequence}</p>}
+            {activeCommitment.details.energyRating && <p className="mt-1 text-[0.62rem] text-[#6d6a8f]">Starting energy: {activeCommitment.details.energyRating}/5</p>}
+          </div>
+        )}
 
         {/* today goal chip */}
         <div className="relative mx-auto mt-4 flex justify-center">

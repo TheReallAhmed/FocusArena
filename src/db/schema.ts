@@ -32,13 +32,20 @@ export const users = pgTable(
     dailyGoal: integer("daily_goal").notNull().default(120),
     apiKey: varchar("api_key", { length: 48 }),
     xp: integer("xp").notNull().default(0),
+    xpBalance: integer("xp_balance").notNull().default(0),
+    equippedTitle: varchar("equipped_title", { length: 40 }),
+    equippedFrame: varchar("equipped_frame", { length: 40 }),
+    publicAccountability: boolean("public_accountability").notNull().default(false),
     streak: integer("streak").notNull().default(0),
     lastFocusDay: varchar("last_focus_day", { length: 10 }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
-  (t) => [uniqueIndex("users_username_idx").on(t.username)]
+  (t) => [
+    uniqueIndex("users_username_idx").on(t.username),
+    check("users_xp_balance_nonnegative_chk", sql`${t.xpBalance} >= 0`),
+  ]
 );
 
 export const authSessions = pgTable(
@@ -72,6 +79,8 @@ export const focusSessions = pgTable(
     runKey: varchar("run_key", { length: 36 }),
     focusQuality: integer("focus_quality"),
     focusQualityVersion: integer("focus_quality_version"),
+    energyRating: integer("energy_rating"),
+    verificationStatus: varchar("verification_status", { length: 24 }),
     startedAt: timestamp("started_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -83,6 +92,8 @@ export const focusSessions = pgTable(
     index("focus_sessions_project_idx").on(t.userId, t.project),
     uniqueIndex("focus_sessions_run_key_idx").on(t.runKey),
     check("focus_sessions_quality_range_chk", sql`${t.focusQuality} is null or ${t.focusQuality} between 0 and 100`),
+    check("focus_sessions_energy_range_chk", sql`${t.energyRating} is null or ${t.energyRating} between 1 and 5`),
+    check("focus_sessions_verification_status_chk", sql`${t.verificationStatus} is null or ${t.verificationStatus} in ('verified', 'partially_verified', 'unverified', 'not_enabled', 'unavailable')`),
   ]
 );
 
@@ -93,6 +104,8 @@ export const focusSessionRuns = pgTable(
     userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     focusSessionId: integer("focus_session_id").references(() => focusSessions.id, { onDelete: "set null" }),
     plannedMinutes: integer("planned_minutes").notNull(),
+    energyRating: integer("energy_rating"),
+    verificationEnabled: boolean("verification_enabled").notNull().default(false),
     status: varchar("status", { length: 16 }).notNull().default("active"),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
     endedAt: timestamp("ended_at", { withTimezone: true }),
@@ -101,7 +114,61 @@ export const focusSessionRuns = pgTable(
     index("focus_runs_user_started_idx").on(t.userId, t.startedAt),
     uniqueIndex("focus_runs_session_idx").on(t.focusSessionId),
     check("focus_runs_minutes_chk", sql`${t.plannedMinutes} between 1 and 120`),
-    check("focus_runs_status_chk", sql`${t.status} in ('active', 'completed', 'abandoned')`),
+    check("focus_runs_status_chk", sql`${t.status} in ('active', 'completed', 'abandoned', 'cancelled')`),
+    check("focus_runs_energy_range_chk", sql`${t.energyRating} is null or ${t.energyRating} between 1 and 5`),
+  ]
+);
+
+export const sessionCommitments = pgTable(
+  "session_commitments",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    runKey: varchar("run_key", { length: 36 }).notNull().references(() => focusSessionRuns.runKey, { onDelete: "cascade" }),
+    intendedOutcome: varchar("intended_outcome", { length: 240 }).notNull(),
+    consequence: varchar("consequence", { length: 240 }),
+    status: varchar("status", { length: 16 }).notNull().default("pending"),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    accountabilityExpiresAt: timestamp("accountability_expires_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("session_commitments_run_idx").on(t.runKey),
+    index("session_commitments_user_status_idx").on(t.userId, t.status, t.createdAt),
+    check("session_commitments_status_chk", sql`${t.status} in ('pending', 'unresolved', 'fulfilled', 'broken', 'abandoned', 'cancelled')`),
+  ]
+);
+
+export const proofChallenges = pgTable(
+  "proof_challenges",
+  {
+    runKey: varchar("run_key", { length: 36 }).primaryKey().references(() => focusSessionRuns.runKey, { onDelete: "cascade" }),
+    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    scheduledAt: timestamp("scheduled_at", { withTimezone: true }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    status: varchar("status", { length: 12 }).notNull().default("scheduled"),
+    respondedAt: timestamp("responded_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("proof_challenges_user_status_idx").on(t.userId, t.status),
+    check("proof_challenges_status_chk", sql`${t.status} in ('scheduled', 'asked', 'answered', 'missed')`),
+  ]
+);
+
+export const userPerks = pgTable(
+  "user_perks",
+  {
+    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    rewardKey: varchar("reward_key", { length: 40 }).notNull(),
+    category: varchar("category", { length: 12 }).notNull(),
+    xpCost: integer("xp_cost").notNull(),
+    purchasedAt: timestamp("purchased_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.rewardKey] }),
+    index("user_perks_user_purchased_idx").on(t.userId, t.purchasedAt),
+    check("user_perks_category_chk", sql`${t.category} in ('title', 'frame')`),
+    check("user_perks_cost_chk", sql`${t.xpCost} > 0`),
   ]
 );
 

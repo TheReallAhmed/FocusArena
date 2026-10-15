@@ -4,14 +4,15 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { randomInt } from "crypto";
 import bcrypt from "bcryptjs";
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, gte, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  users, tasks, rooms, roomMembers, squads, squadMembers, type User,
+  users, tasks, rooms, roomMembers, squads, squadMembers, userPerks, type User,
 } from "@/db/schema";
 import { createSession, destroySession, getSessionUser } from "@/lib/auth";
 import { creditFocusSession, collectBadgeStats, evaluateBadges } from "@/server/core";
 import { randomBytes } from "crypto";
+import { perkByKey } from "@/lib/perks";
 
 export type FormState = { error?: string } & Record<string, unknown>;
 
@@ -28,7 +29,7 @@ async function requireAdmin(): Promise<User> {
 }
 
 function revalidateAll() {
-  for (const p of ["/dashboard", "/focus", "/tasks", "/calendar", "/leaderboard", "/squads", "/rooms", "/admin"]) {
+  for (const p of ["/dashboard", "/focus", "/history", "/settings/profile", "/tasks", "/calendar", "/leaderboard", "/squads", "/rooms", "/admin"]) {
     revalidatePath(p);
   }
 }
@@ -412,6 +413,56 @@ export async function revokeApiKeyAction() {
   const user = await requireUser();
   await db.update(users).set({ apiKey: null }).where(eq(users.id, user.id));
   revalidatePath("/settings/profile");
+  return { ok: true };
+}
+
+/* ------------------------- XP PERKS + PRIVACY ------------------------- */
+
+export async function purchasePerkAction(rewardKey: string) {
+  const user = await requireUser();
+  const reward = perkByKey(String(rewardKey).slice(0, 40));
+  if (!reward) return { error: "That cosmetic is not in the store." };
+  const result = await db.transaction(async (tx) => {
+    const [account] = await tx.select({ xpBalance: users.xpBalance }).from(users).where(eq(users.id, user.id)).for("update").limit(1);
+    if (!account) return { error: "Account not found." };
+    const [owned] = await tx.select({ rewardKey: userPerks.rewardKey }).from(userPerks)
+      .where(and(eq(userPerks.userId, user.id), eq(userPerks.rewardKey, reward.key))).limit(1);
+    if (owned) return { ok: true as const, alreadyOwned: true, xp: account.xpBalance };
+    if (account.xpBalance < reward.price) return { error: `You need ${reward.price - account.xpBalance} more XP.` };
+    const [updated] = await tx.update(users)
+      .set({ xpBalance: sql`${users.xpBalance} - ${reward.price}` })
+      .where(and(eq(users.id, user.id), gte(users.xpBalance, reward.price)))
+      .returning({ xp: users.xpBalance });
+    if (!updated) return { error: "Your XP balance changed; refresh and try again." };
+    await tx.insert(userPerks).values({ userId: user.id, rewardKey: reward.key, category: reward.category, xpCost: reward.price });
+    return { ok: true as const, alreadyOwned: false, xp: updated.xp };
+  });
+  revalidatePath("/settings/profile"); revalidatePath("/dashboard"); revalidatePath("/leaderboard"); revalidatePath(`/u/${user.username}`);
+  return result;
+}
+
+export async function equipPerkAction(rewardKey: string | null) {
+  const user = await requireUser();
+  if (rewardKey === null) {
+    await db.update(users).set({ equippedTitle: null, equippedFrame: null }).where(eq(users.id, user.id));
+  } else {
+    const reward = perkByKey(String(rewardKey).slice(0, 40));
+    if (!reward) return { error: "That cosmetic is not in the store." };
+    const [owned] = await db.select({ rewardKey: userPerks.rewardKey }).from(userPerks)
+      .where(and(eq(userPerks.userId, user.id), eq(userPerks.rewardKey, reward.key))).limit(1);
+    if (!owned) return { error: "Purchase this cosmetic before equipping it." };
+    await db.update(users).set(reward.category === "title" ? { equippedTitle: reward.key } : { equippedFrame: reward.key })
+      .where(eq(users.id, user.id));
+  }
+  revalidatePath("/settings/profile"); revalidatePath("/leaderboard"); revalidatePath(`/u/${user.username}`);
+  return { ok: true };
+}
+
+export async function updatePublicAccountabilityAction(enabled: boolean) {
+  const user = await requireUser();
+  if (typeof enabled !== "boolean") return { error: "Choose a valid privacy setting." };
+  await db.update(users).set({ publicAccountability: enabled }).where(eq(users.id, user.id));
+  revalidatePath("/settings/profile"); revalidatePath("/leaderboard"); revalidatePath("/dashboard");
   return { ok: true };
 }
 

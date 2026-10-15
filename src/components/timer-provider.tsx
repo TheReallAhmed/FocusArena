@@ -5,9 +5,9 @@ import {
   useLayoutEffect, useRef, useState, type ReactNode,
 } from "react";
 import { usePathname } from "next/navigation";
-import { Pause, Play, Timer, Watch, Zap, X, ChevronRight, HelpCircle, Check, Ban } from "lucide-react";
+import { Pause, Play, Timer, Watch, Zap, X, ChevronRight, HelpCircle, Check, Ban, Target, ShieldCheck, LoaderCircle } from "lucide-react";
 import { completeFocusSession, type FocusResult } from "@/server/actions";
-import { abandonFocusRunAction, beginFocusRunAction } from "@/server/distractions";
+import { abandonFocusRunAction, answerProofCheckAction, beginFocusRunAction, cancelFocusRunAction, pollProofCheckAction, type SessionStartDetails } from "@/server/distractions";
 import { playChime, unlockAudio } from "@/lib/sound";
 import { fmtClock } from "@/lib/dates";
 
@@ -73,6 +73,7 @@ type TimerContextValue = {
   lastResult: FocusResult | null;
   dismissResult: () => void;
   pToggle: () => void;
+  startFocusWithDetails: (details: SessionStartDetails) => Promise<{ error?: string; ok?: boolean }>;
   pReset: () => void;
   pSkip: () => void;
   pSetMode: (m: Mode) => void;
@@ -176,6 +177,16 @@ export function TimerProvider({ children }: { children: ReactNode }) {
   const [lastResult, setLastResult] = useState<FocusResult | null>(null);
   const [celebrations, setCelebrations] = useState<Celebration[]>([]);
   const [pendingAsk, setPendingAsk] = useState<null | "pomodoro" | "stopwatch">(null);
+  const [pendingFocusSetup, setPendingFocusSetup] = useState(false);
+  const [focusGoal, setFocusGoal] = useState("");
+  const [focusConsequence, setFocusConsequence] = useState("");
+  const [focusEnergy, setFocusEnergy] = useState<number | null>(null);
+  const [proofOptIn, setProofOptIn] = useState(false);
+  const [focusSetupError, setFocusSetupError] = useState<string | null>(null);
+  const [focusSetupSaving, setFocusSetupSaving] = useState(false);
+  const [proofPromptRunKey, setProofPromptRunKey] = useState<string | null>(null);
+  const [proofPromptError, setProofPromptError] = useState<string | null>(null);
+  const proofShownRunRef = useRef<string | null>(null);
   const stRef = useRef<StoredState | null>(null);
   const pathRef = useRef(pathname);
   const resolvingEndAtRef = useRef<number | null>(null);
@@ -303,19 +314,13 @@ export function TimerProvider({ children }: { children: ReactNode }) {
         mode = next;
         endAt += durationMs(next, cur.durations);
       } else {
-        if (!cur.autoStart && endAt + durationMs("focus", cur.durations) > now) {
-          persist({
-            ...stRef.current!,
-            pomodoro: { mode: "focus", status: "paused", endAt: null, remainingMs: durationMs("focus", cur.durations), cycles, taskId, runKey: null },
-          });
-          resolvingEndAtRef.current = null;
-          return;
-        }
-        mode = "focus";
-        runKey = crypto.randomUUID();
-        void beginFocusRunAction(runKey, cur.durations.focus).catch(() => undefined);
-        // A missed break starts a fresh full server-timed round; don't backdate credit.
-        endAt = Date.now() + durationMs("focus", cur.durations);
+        // Every new focus round must pass the private commitment/energy check-in.
+        persist({
+          ...stRef.current!,
+          pomodoro: { mode: "focus", status: "paused", endAt: null, remainingMs: durationMs("focus", cur.durations), cycles, taskId, runKey: null },
+        });
+        resolvingEndAtRef.current = null;
+        return;
       }
     }
 
@@ -399,6 +404,37 @@ export function TimerProvider({ children }: { children: ReactNode }) {
 
   /* --------------------------- POMODORO API ----------------------------- */
 
+  const activeProofRunKey = st?.pomodoro.mode === "focus" && st.pomodoro.status === "running" ? st.pomodoro.runKey : null;
+  useEffect(() => {
+    if (!activeProofRunKey) return;
+    let alive = true;
+    const poll = async () => {
+      try {
+        const result = await pollProofCheckAction(activeProofRunKey);
+        if (alive && result.due && proofShownRunRef.current !== activeProofRunKey) {
+          proofShownRunRef.current = activeProofRunKey;
+          setProofPromptRunKey(activeProofRunKey);
+          setProofPromptError(null);
+        }
+      } catch { /* Connectivity errors do not count as a missed attention check. */ }
+    };
+    void poll();
+    const id = window.setInterval(() => void poll(), 15_000);
+    return () => { alive = false; window.clearInterval(id); };
+  }, [activeProofRunKey]);
+
+  const answerProofPrompt = useCallback(async () => {
+    if (!proofPromptRunKey) return;
+    setProofPromptError(null);
+    try {
+      const response = await answerProofCheckAction(proofPromptRunKey);
+      if (response.error) setProofPromptError(response.error);
+      setProofPromptRunKey(null);
+    } catch {
+      setProofPromptError("Could not reach the server. Try again before the check expires.");
+    }
+  }, [proofPromptRunKey]);
+
   const pToggle = useCallback(() => {
     const cur = stRef.current;
     if (!cur) return;
@@ -410,6 +446,11 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       persist({ ...cur, pomodoro: { ...p, status: "paused", endAt: null, remainingMs: remaining } });
       return;
     }
+    if (p.mode === "focus" && (p.status !== "paused" || !p.runKey)) {
+      if (cur.partialMode === "ask") setPendingAsk("pomodoro");
+      else setPendingFocusSetup(true);
+      return;
+    }
     // first run of the day/device: ask how early stops should be handled
     if (cur.partialMode === "ask" && p.status !== "paused") {
       setPendingAsk("pomodoro");
@@ -418,8 +459,41 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     const base = p.status === "paused" && p.remainingMs !== null ? p.remainingMs : durationMs(p.mode, cur.durations);
     const runKey = p.mode === "focus" ? p.runKey ?? crypto.randomUUID() : null;
     persist({ ...cur, pomodoro: { ...p, runKey, status: "running", endAt: Date.now() + base, remainingMs: null } });
-    if (runKey && !p.runKey) void beginFocusRunAction(runKey, cur.durations.focus).catch(() => undefined);
   }, [persist, durationMs]);
+
+  const startFocusWithDetails = useCallback(async (details: SessionStartDetails) => {
+    const cur = stRef.current;
+    if (!cur || cur.pomodoro.mode !== "focus" || cur.pomodoro.status === "running" || cur.pomodoro.runKey) {
+      return { error: "The focus timer changed; try starting again." };
+    }
+    setFocusSetupSaving(true);
+    setFocusSetupError(null);
+    unlockAudio();
+    const runKey = crypto.randomUUID();
+    try {
+      const started = await beginFocusRunAction(runKey, cur.durations.focus, details);
+      if ("error" in started) {
+        setFocusSetupError(started.error ?? "Could not save the session setup.");
+        return { error: started.error ?? "Could not save the session setup." };
+      }
+      const latest = stRef.current;
+      if (!latest || latest.pomodoro.mode !== "focus" || latest.pomodoro.runKey) {
+        await abandonFocusRunAction(runKey);
+        return { error: "The timer changed while saving; the new round was cancelled." };
+      }
+      const p = latest.pomodoro;
+      const base = p.status === "paused" && p.remainingMs !== null ? p.remainingMs : durationMs("focus", latest.durations);
+      persist({ ...latest, pomodoro: { ...p, runKey, status: "running", endAt: Date.now() + base, remainingMs: null } });
+      setPendingFocusSetup(false);
+      setFocusGoal(""); setFocusConsequence(""); setFocusEnergy(null); setProofOptIn(false);
+      return { ok: true };
+    } catch {
+      setFocusSetupError("Could not reach the server. Your timer has not started; try again.");
+      return { error: "Could not reach the server." };
+    } finally {
+      setFocusSetupSaving(false);
+    }
+  }, [durationMs, persist]);
 
   /**
    * Bank the minutes already spent in the running focus phase.
@@ -451,7 +525,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       void resolvePomodoro();
       return;
     }
-    if (p.runKey) void abandonFocusRunAction(p.runKey).catch(() => undefined);
+    if (p.runKey) void cancelFocusRunAction(p.runKey).catch(() => undefined);
     bankPartialFocus(cur);
     persist({
       ...cur,
@@ -611,10 +685,15 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     const next: StoredState = { ...cur, partialMode: choice };
     if (which === "pomodoro") {
       const p = next.pomodoro;
+      if (p.mode === "focus") {
+        persist(next);
+        setPendingFocusSetup(true);
+        unlockAudio();
+        return;
+      }
       const base = p.status === "paused" && p.remainingMs !== null ? p.remainingMs : durationMs(p.mode, next.durations);
-      const runKey = p.mode === "focus" ? p.runKey ?? crypto.randomUUID() : null;
+      const runKey = null;
       next.pomodoro = { ...p, runKey, status: "running", endAt: Date.now() + base, remainingMs: null };
-      if (runKey && !p.runKey) void beginFocusRunAction(runKey, next.durations.focus).catch(() => undefined);
     } else {
       next.stopwatch = { ...next.stopwatch, status: "running", startedAt: Date.now() };
     }
@@ -634,7 +713,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     todayMin: st?.todayMin ?? 0,
     lastResult,
     dismissResult,
-    pToggle, pReset, pSkip, pSetMode, pSetTask,
+    pToggle, startFocusWithDetails, pReset, pSkip, pSetMode, pSetTask,
     settings: {
       durations: st?.durations ?? DEFAULT_DURATIONS,
       autoStart: st?.autoStart ?? false,
@@ -654,7 +733,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     swToggle, swSetTask, swBank, swDiscard,
     celebrations,
     dismissCelebration,
-  }), [st, msLeft, swElapsedMs, lastResult, dismissResult, pToggle, pReset, pSkip, pSetMode, pSetTask, setSettings, setPartialMode, setProject, setNote, seedDaily, swToggle, swSetTask, swBank, swDiscard, celebrations, dismissCelebration]);
+  }), [st, msLeft, swElapsedMs, lastResult, dismissResult, pToggle, startFocusWithDetails, pReset, pSkip, pSetMode, pSetTask, setSettings, setPartialMode, setProject, setNote, seedDaily, swToggle, swSetTask, swBank, swDiscard, celebrations, dismissCelebration]);
 
   const pomodoroActive = (st?.pomodoro.status ?? "idle") !== "idle";
   const stopwatchActive = (st?.stopwatch.status ?? "idle") !== "idle";
@@ -662,6 +741,66 @@ export function TimerProvider({ children }: { children: ReactNode }) {
   return (
     <TimerContext.Provider value={value}>
       {children}
+
+      {pendingFocusSetup && (
+        <div className="fixed inset-0 z-[160] flex items-center justify-center bg-ink-950/85 p-4 backdrop-blur-sm">
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void startFocusWithDetails({ intendedOutcome: focusGoal, consequence: focusConsequence, energyRating: focusEnergy, verificationEnabled: proofOptIn });
+            }}
+            className="glass-card max-h-[92vh] w-full max-w-xl overflow-y-auto p-6 sm:p-7 animate-scale-in"
+            role="dialog" aria-modal="true" aria-labelledby="focus-checkin-title"
+          >
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-500/15 text-brand-300"><Target size={21} /></span>
+            <h2 id="focus-checkin-title" className="mt-4 text-xl font-bold tracking-tight text-white">Set your intention</h2>
+            <p className="mt-1 text-sm text-[#8f8cb0]">A quick private check-in before this focus round. You can skip the energy rating and attention checks.</p>
+
+            <label className="mt-5 block text-xs font-semibold uppercase tracking-[0.12em] text-[#8f8cb0]">
+              What exactly do you want to accomplish? <span className="text-rose-300">*</span>
+              <textarea required minLength={3} maxLength={240} value={focusGoal} onChange={(e) => setFocusGoal(e.target.value)} className="input mt-2 min-h-20 resize-y normal-case tracking-normal" placeholder="Finish the outline for section two…" />
+            </label>
+            <label className="mt-4 block text-xs font-semibold uppercase tracking-[0.12em] text-[#8f8cb0]">
+              A personal consequence if you do not fulfill it <span className="font-normal normal-case tracking-normal text-[#5c5a78]">· optional</span>
+              <input maxLength={240} value={focusConsequence} onChange={(e) => setFocusConsequence(e.target.value)} className="input mt-2 normal-case tracking-normal" placeholder="Take a short walk before the next round" />
+            </label>
+            <div className="mt-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8f8cb0]">Energy right now? <span className="font-normal normal-case tracking-normal text-[#5c5a78]">· optional</span></p>
+              <div className="mt-2 grid grid-cols-5 gap-2">
+                {["Very low", "Low", "Moderate", "High", "Very high"].map((label, index) => {
+                  const value = index + 1;
+                  return <button key={value} type="button" aria-pressed={focusEnergy === value} onClick={() => setFocusEnergy(focusEnergy === value ? null : value)} className={`tab-pill !flex-col !gap-1 !px-1.5 !py-2 ${focusEnergy === value ? "tab-pill-active" : ""}`}><b>{value}</b><span className="text-[0.55rem] leading-tight">{label}</span></button>;
+                })}
+              </div>
+            </div>
+            <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-line bg-white/[0.025] p-3.5">
+              <input type="checkbox" checked={proofOptIn} onChange={(e) => setProofOptIn(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#7c6cff]" />
+              <span><span className="flex items-center gap-1.5 text-sm font-semibold text-white"><ShieldCheck size={14} className="text-neon-300" /> Enable optional attention check</span><span className="mt-1 block text-xs leading-relaxed text-[#6d6a8f]">For rounds of 15+ minutes, one server-timed prompt may appear; it expires after two minutes. It is an accountability aid, not proof of cheating or continuous attention.</span></span>
+            </label>
+
+            {focusSetupError && <p role="alert" className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2.5 text-sm text-rose-300">{focusSetupError}</p>}
+            <div className="mt-5 flex flex-wrap justify-end gap-2 border-t border-line pt-4">
+              <button type="button" disabled={focusSetupSaving} onClick={() => { setPendingFocusSetup(false); setFocusSetupError(null); }} className="btn btn-ghost !px-4 !py-2.5">Cancel</button>
+              <button type="submit" disabled={focusSetupSaving || focusGoal.trim().length < 3} className="btn btn-primary !px-5 !py-2.5">
+                {focusSetupSaving ? <LoaderCircle size={15} className="animate-spin" /> : <Play size={15} />} {focusSetupSaving ? "Saving…" : "Save & start focus"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {proofPromptRunKey && (
+        <div className="fixed inset-0 z-[170] flex items-center justify-center bg-ink-950/75 p-4 backdrop-blur-sm">
+          <div className="glass-card w-full max-w-sm p-6 text-center" role="dialog" aria-modal="true" aria-labelledby="proof-prompt-title">
+            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-neon-400/12 text-neon-300"><ShieldCheck size={22} /></span>
+            <h2 id="proof-prompt-title" className="mt-4 text-lg font-bold text-white">Are you still focused?</h2>
+            <p className="mt-2 text-sm text-[#8f8cb0]">Confirm within two minutes. A missed response can also mean an interruption or connection issue.</p>
+            {proofPromptError && <p role="alert" className="mt-3 text-xs text-rose-300">{proofPromptError}</p>}
+            <button onClick={() => void answerProofPrompt()} className="btn btn-primary mt-5 w-full !py-3"><Check size={16} /> Yes, I’m here</button>
+          </div>
+        </div>
+      )}
+      {proofPromptError && !proofPromptRunKey && <p role="status" className="fixed bottom-5 left-1/2 z-[175] -translate-x-1/2 rounded-xl border border-gold-400/30 bg-ink-900 px-4 py-3 text-sm text-gold-200 shadow-xl">{proofPromptError}</p>}
 
       {/* Floating widget — visible while timer runs on ANY page */}
       {(pomodoroActive || stopwatchActive) && !(pomodoroActive && pathname === "/focus") && !(stopwatchActive && pathname === "/stopwatch" && !pomodoroActive) && (

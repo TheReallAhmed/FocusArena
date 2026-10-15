@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { Crown, Flame, Trophy, Medal, Sparkles } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { getFocusQualityLeaderboard, getLeaderboard } from "@/server/queries";
-import { Avatar, AdminChip, LevelChip } from "@/components/widgets";
+import { Avatar, AdminChip, LevelChip, PerkTitleBadge } from "@/components/widgets";
 import { BadgeRail } from "@/components/badge-rail";
 import { LiveRefresh } from "@/components/live-refresh";
 import { levelFromXp, BADGES, badgeScore } from "@/lib/xp";
@@ -106,7 +106,7 @@ export default async function LeaderboardPage({
                     </span>
                   )}
                   <span className="relative">
-                    <Avatar name={r.displayName} hue={r.avatarHue} size={isFirst ? 62 : 50} />
+                    <Avatar name={r.displayName} hue={r.avatarHue} frameKey={r.equippedFrame} size={isFirst ? 62 : 50} />
                     <span
                       className="tnum absolute -bottom-1.5 -right-1.5 flex h-6 w-6 items-center justify-center rounded-full border-2 border-ink-950 text-[0.68rem] font-black text-ink-950"
                       style={{ background: PODIUM_HUE[rank - 1] }}
@@ -118,7 +118,9 @@ export default async function LeaderboardPage({
                     <p className="flex items-center justify-center gap-1.5 truncate text-sm font-bold text-white">
                       {r.displayName}
                       {r.role === "admin" && <AdminChip small />}
+                      {r.accountabilityActive && <span title="Temporary, self-reported indicator — expires within 24 hours" className="chip !border-rose-400/30 !bg-rose-400/8 !px-1.5 !py-0 !text-[0.55rem] !text-rose-300">24h accountability</span>}
                     </p>
+                    <PerkTitleBadge rewardKey={r.equippedTitle} />
                     <p className="text-[0.68rem] text-[#6d6a8f]">
                       @{r.username} {r.id === user.id && <span className="text-brand-300">(you)</span>}
                     </p>
@@ -159,14 +161,15 @@ export default async function LeaderboardPage({
                 }`}
               >
                 <span className="tnum w-7 shrink-0 text-center text-sm font-bold text-[#6d6a8f]">{i + 4}</span>
-                <Avatar name={r.displayName} hue={r.avatarHue} imageUrl={r.avatarUrl} size={36} />
+                <Avatar name={r.displayName} hue={r.avatarHue} imageUrl={r.avatarUrl} frameKey={r.equippedFrame} size={36} />
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-white">
                     {r.displayName}
                     {r.role === "admin" && <AdminChip small />}
+                    {r.accountabilityActive && <span title="Temporary, self-reported indicator — expires within 24 hours" className="chip !border-rose-400/30 !bg-rose-400/8 !px-1.5 !py-0 !text-[0.55rem] !text-rose-300">24h</span>}
                     {r.id === user.id && <span className="text-xs font-bold text-brand-300">(you)</span>}
                   </p>
-                  <p className="text-[0.68rem] text-[#6d6a8f]">@{r.username}</p>
+                  <div className="mt-0.5 flex items-center gap-1.5"><span className="text-[0.68rem] text-[#6d6a8f]">@{r.username}</span><PerkTitleBadge rewardKey={r.equippedTitle} /></div>
                 </div>
                 <div className="hidden items-center gap-1.5 sm:flex">
                   <LevelChip level={levelMap.get(r.id) ?? 1} small />

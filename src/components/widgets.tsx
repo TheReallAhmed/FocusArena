@@ -5,6 +5,7 @@ import {
   Flag, Handshake, Brain, Star, Atom, ShieldCheck, type LucideIcon,
 } from "lucide-react";
 import type { BadgeDef } from "@/lib/xp";
+import { PERK_CATALOG } from "@/lib/perks";
 
 /* ------------------------------ Avatar ------------------------------ */
 
@@ -14,14 +15,17 @@ export function Avatar({
   imageUrl,
   size = 38,
   ring = false,
+  frameKey,
 }: {
   name: string;
   hue: number;
   imageUrl?: string | null;
   size?: number;
   ring?: boolean;
+  frameKey?: string | null;
 }) {
   const initial = (name || "?").trim().charAt(0).toUpperCase();
+  const frameColor = frameKey === "gold-frame" ? "#fbbf24" : frameKey === "neon-frame" ? "#4ce3ff" : frameKey === "aurora-frame" ? "#a78bfa" : null;
   return (
     <span
       className="inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full font-bold text-white"
@@ -30,7 +34,7 @@ export function Avatar({
         height: size,
         fontSize: size * 0.42,
         background: `linear-gradient(135deg, hsl(${hue} 80% 62%), hsl(${(hue + 60) % 360} 85% 45%))`,
-        boxShadow: ring ? `0 0 0 2px #06060d, 0 0 0 4px hsl(${hue} 80% 62% / 0.55)` : undefined,
+        boxShadow: frameColor ? `0 0 0 2px #06060d, 0 0 0 4px ${frameColor}aa, 0 0 20px -6px ${frameColor}88` : ring ? `0 0 0 2px #06060d, 0 0 0 4px hsl(${hue} 80% 62% / 0.55)` : undefined,
       }}
     >
       {imageUrl ? (
@@ -41,6 +45,13 @@ export function Avatar({
       )}
     </span>
   );
+}
+
+export function PerkTitleBadge({ rewardKey }: { rewardKey: string | null }) {
+  if (!rewardKey) return null;
+  const reward = PERK_CATALOG.find((item) => item.key === rewardKey && item.category === "title");
+  if (!reward) return null;
+  return <span className="chip !border-neon-400/30 !bg-neon-400/8 !px-2 !py-0.5 !text-[0.62rem] !text-neon-300">{reward.name}</span>;
 }
 
 /* ---------------------------- Level chip ---------------------------- */
