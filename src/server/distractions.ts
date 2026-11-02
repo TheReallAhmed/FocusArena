@@ -130,6 +130,17 @@ export async function cancelFocusRunAction(runKey: string) {
   return { ok: true };
 }
 
+export async function getFocusRunRemainingAction(runKey: string) {
+  const user = await getSessionUser();
+  if (!user || !UUID_RE.test(runKey)) return null;
+  const [run] = await db.select({ status: focusSessionRuns.status, plannedMinutes: focusSessionRuns.plannedMinutes, startedAt: focusSessionRuns.startedAt })
+    .from(focusSessionRuns).where(and(eq(focusSessionRuns.runKey, runKey), eq(focusSessionRuns.userId, user.id))).limit(1);
+  if (!run) return null;
+  const totalMs = run.plannedMinutes * 60_000;
+  const remainingMs = run.status === "active" ? Math.min(totalMs, Math.max(0, totalMs - (Date.now() - run.startedAt.getTime()))) : 0;
+  return { status: run.status, remainingMs };
+}
+
 export async function getLatestUnresolvedCommitmentAction(runKey?: string) {
   const user = await getSessionUser();
   if (!user || (runKey && !UUID_RE.test(runKey))) return null;
@@ -181,6 +192,7 @@ export async function setCommitmentStatusAction(
     commitmentStatus: sessionCommitments.status,
     runStatus: focusSessionRuns.status,
     plannedMinutes: focusSessionRuns.plannedMinutes,
+    startedAt: focusSessionRuns.startedAt,
   }).from(sessionCommitments)
     .innerJoin(focusSessionRuns, eq(focusSessionRuns.runKey, sessionCommitments.runKey))
     .where(and(eq(sessionCommitments.runKey, runKey), eq(sessionCommitments.userId, user.id), eq(focusSessionRuns.userId, user.id)))
@@ -223,8 +235,12 @@ export async function setCommitmentStatusAction(
     if (record.runStatus === "active") {
       try {
         await creditFocusSession(user, { minutes: record.plannedMinutes, runKey });
-      } catch {
-        return { error: "This focus round has not reached its planned duration yet. Finish the timer, then try again." };
+      } catch (error) {
+        if (error instanceof Error && error.message === "The focus round has not run for its planned duration.") {
+          const remainingMs = Math.max(0, record.plannedMinutes * 60_000 - (Date.now() - record.startedAt.getTime()));
+          return { error: "This focus round has not reached its planned duration yet. Finish the timer, then try again.", remainingMs };
+        }
+        return { error: "This focus round could not be saved. Please try again." };
       }
     }
     const [completedRun] = await db.select({ status: focusSessionRuns.status }).from(focusSessionRuns)

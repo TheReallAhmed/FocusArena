@@ -26,12 +26,14 @@ export function CommitmentHistoryControls({
     notFulfilled: "تسجيل عدم الوفاء",
     undo: "إلغاء تسجيل الوفاء",
     cancel: "إلغاء الجلسة",
+    resume: "لم تكتمل المدة بعد؛ استأنفنا المؤقّت لإكمالها.",
     error: "تعذر تحديث سجل الجلسة. حاول مجددًا.",
   } : {
     fulfilled: "Mark fulfilled",
     notFulfilled: "Mark not fulfilled",
     undo: "Undo outcome",
     cancel: "Cancel session",
+    resume: "The planned time is not complete yet; the timer has resumed.",
     error: "Could not update this focus record. Try again.",
   };
 
@@ -41,6 +43,12 @@ export function CommitmentHistoryControls({
       try {
         const result = await setCommitmentStatusAction(runKey, outcome);
         if ("error" in result) {
+          if ("remainingMs" in result && typeof result.remainingMs === "number" && result.remainingMs > 0 && runStatus === "active") {
+            window.dispatchEvent(new CustomEvent("focusarena:run-resume", { detail: { runKey, remainingMs: result.remainingMs } }));
+            setError(copy.resume);
+            router.push("/focus");
+            return;
+          }
           setError(result.error ?? copy.error);
           return;
         }

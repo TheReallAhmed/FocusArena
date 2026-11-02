@@ -7,7 +7,7 @@ import {
 import { usePathname, useRouter } from "next/navigation";
 import { Pause, Play, Timer, Watch, Zap, X, ChevronRight, HelpCircle, Check, Ban, Target, ShieldCheck, LoaderCircle } from "lucide-react";
 import { completeFocusSession, type FocusResult } from "@/server/actions";
-import { abandonFocusRunAction, answerProofCheckAction, beginFocusRunAction, cancelFocusRunAction, getLatestUnresolvedCommitmentAction, pollProofCheckAction, resolveCommitmentAction, type SessionStartDetails } from "@/server/distractions";
+import { abandonFocusRunAction, answerProofCheckAction, beginFocusRunAction, cancelFocusRunAction, getFocusRunRemainingAction, getLatestUnresolvedCommitmentAction, pollProofCheckAction, resolveCommitmentAction, type SessionStartDetails } from "@/server/distractions";
 import { playChime, unlockAudio } from "@/lib/sound";
 import { fmtClock } from "@/lib/dates";
 import { useLocale } from "@/components/locale-provider";
@@ -221,8 +221,33 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       persist({ ...cur, pomodoro: { ...cur.pomodoro, status: "idle", endAt: null, remainingMs: null, runKey: null } });
       setCreditError(false);
     };
+    const onRunResume = (event: Event) => {
+      const detail = (event as CustomEvent<{ runKey: string; remainingMs: number }>).detail;
+      const cur = stRef.current;
+      if (!cur || !detail || !Number.isFinite(detail.remainingMs)) return;
+      const sameRun = cur.pomodoro.runKey === detail.runKey;
+      persist({
+        ...cur,
+        project: sameRun ? cur.project : null,
+        note: sameRun ? cur.note : null,
+        pomodoro: {
+          ...cur.pomodoro,
+          mode: "focus",
+          taskId: sameRun ? cur.pomodoro.taskId : null,
+          runKey: detail.runKey,
+          status: "running",
+          endAt: Date.now() + Math.max(0, detail.remainingMs),
+          remainingMs: null,
+        },
+      });
+      setCreditError(false);
+    };
     window.addEventListener("focusarena:run-cancelled", onRunCancelled);
-    return () => window.removeEventListener("focusarena:run-cancelled", onRunCancelled);
+    window.addEventListener("focusarena:run-resume", onRunResume);
+    return () => {
+      window.removeEventListener("focusarena:run-cancelled", onRunCancelled);
+      window.removeEventListener("focusarena:run-resume", onRunResume);
+    };
   }, [persist]);
 
   const dismissCelebration = useCallback((id: number) => {
@@ -341,6 +366,18 @@ export function TimerProvider({ children }: { children: ReactNode }) {
           setCreditError(false);
           const saved = await credit(cur.durations.focus, taskId, "focus", runKey);
           if (!saved) {
+            if (runKey) {
+              try {
+                const serverRun = await getFocusRunRemainingAction(runKey);
+                const latest = stRef.current;
+                if (serverRun?.status === "active" && serverRun.remainingMs > 0 && latest?.pomodoro.runKey === runKey) {
+                  persist({ ...latest, pomodoro: { ...latest.pomodoro, status: "running", endAt: Date.now() + serverRun.remainingMs, remainingMs: null } });
+                  setCreditError(false);
+                  resolvingEndAtRef.current = null;
+                  return;
+                }
+              } catch { /* Fall back to the retry notice if the server cannot be reached. */ }
+            }
             const latest = stRef.current;
             if (latest?.pomodoro.runKey === runKey) {
               persist({ ...latest, pomodoro: { ...latest.pomodoro, status: "paused", endAt: null, remainingMs: 0 } });
@@ -555,7 +592,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
         return { error: "The timer changed while saving; the new round was cancelled." };
       }
       const p = latest.pomodoro;
-      const base = p.status === "paused" && p.remainingMs !== null ? p.remainingMs : durationMs("focus", latest.durations);
+      const base = durationMs("focus", latest.durations);
       focusCommitmentsRef.current.set(runKey, { intendedOutcome: details.intendedOutcome, consequence: details.consequence ?? null });
       persist({ ...latest, pomodoro: { ...p, runKey, status: "running", endAt: Date.now() + base, remainingMs: null } });
       setPendingFocusSetup(false);
