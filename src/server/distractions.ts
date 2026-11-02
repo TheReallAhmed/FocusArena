@@ -1,11 +1,12 @@
 "use server";
 
 import { randomInt } from "node:crypto";
-import { and, desc, eq, gt, lte } from "drizzle-orm";
+import { and, desc, eq, gt, lte, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { distractionEvents, focusSessionRuns, proofChallenges, sessionCommitments, users } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
+import { creditFocusSession } from "@/server/core";
 
 const SOURCES = ["phone", "interruption", "thought", "noise", "other"] as const;
 export type DistractionSource = (typeof SOURCES)[number];
@@ -129,9 +130,9 @@ export async function cancelFocusRunAction(runKey: string) {
   return { ok: true };
 }
 
-export async function getLatestUnresolvedCommitmentAction() {
+export async function getLatestUnresolvedCommitmentAction(runKey?: string) {
   const user = await getSessionUser();
-  if (!user) return null;
+  if (!user || (runKey && !UUID_RE.test(runKey))) return null;
   const [row] = await db.select({
     id: sessionCommitments.id,
     runKey: sessionCommitments.runKey,
@@ -139,7 +140,11 @@ export async function getLatestUnresolvedCommitmentAction() {
     consequence: sessionCommitments.consequence,
     createdAt: sessionCommitments.createdAt,
   }).from(sessionCommitments)
-    .where(and(eq(sessionCommitments.userId, user.id), eq(sessionCommitments.status, "unresolved")))
+    .where(and(
+      eq(sessionCommitments.userId, user.id),
+      eq(sessionCommitments.status, "unresolved"),
+      ...(runKey ? [eq(sessionCommitments.runKey, runKey)] : []),
+    ))
     .orderBy(desc(sessionCommitments.createdAt)).limit(1);
   return row ?? null;
 }
@@ -162,26 +167,92 @@ export async function getActiveCommitmentAction(runKey: string) {
   return row ?? null;
 }
 
-export async function resolveCommitmentAction(runKey: string, outcome: "fulfilled" | "broken") {
+export async function setCommitmentStatusAction(
+  runKey: string,
+  outcome: "fulfilled" | "broken" | "unresolved" | "cancelled",
+) {
   const user = await getSessionUser();
-  if (!user || !UUID_RE.test(runKey)) return { error: "Sign in to resolve this commitment." };
-  if (outcome !== "fulfilled" && outcome !== "broken") return { error: "Choose one of the available outcomes." };
-  const [run] = await db.select({ status: focusSessionRuns.status, endedAt: focusSessionRuns.endedAt })
-    .from(focusSessionRuns).where(and(eq(focusSessionRuns.runKey, runKey), eq(focusSessionRuns.userId, user.id))).limit(1);
-  if (!run || run.status !== "completed" || !run.endedAt) return { error: "Only a completed focus session can be resolved." };
-  const now = new Date();
-  const updated = await db.update(sessionCommitments).set({
-    status: outcome,
-    resolvedAt: now,
-    accountabilityExpiresAt: outcome === "broken" ? new Date(now.getTime() + 24 * 60 * 60_000) : null,
-  }).where(and(
-    eq(sessionCommitments.runKey, runKey),
-    eq(sessionCommitments.userId, user.id),
-    eq(sessionCommitments.status, "unresolved"),
-  )).returning({ id: sessionCommitments.id });
-  if (!updated.length) return { error: "This commitment has already been resolved." };
+  if (!user || !UUID_RE.test(runKey)) return { error: "Sign in to update this commitment." };
+  if (!["fulfilled", "broken", "unresolved", "cancelled"].includes(outcome)) {
+    return { error: "Choose one of the available outcomes." };
+  }
+
+  const [record] = await db.select({
+    commitmentStatus: sessionCommitments.status,
+    runStatus: focusSessionRuns.status,
+    plannedMinutes: focusSessionRuns.plannedMinutes,
+  }).from(sessionCommitments)
+    .innerJoin(focusSessionRuns, eq(focusSessionRuns.runKey, sessionCommitments.runKey))
+    .where(and(eq(sessionCommitments.runKey, runKey), eq(sessionCommitments.userId, user.id), eq(focusSessionRuns.userId, user.id)))
+    .limit(1);
+  if (!record) return { error: "This commitment was not found." };
+
+  if (outcome === "cancelled") {
+    if (record.runStatus === "cancelled" && record.commitmentStatus === "cancelled") return { ok: true };
+    const cancelled = await db.transaction(async (tx) => {
+      const [run] = await tx.select({ status: focusSessionRuns.status }).from(focusSessionRuns)
+        .where(and(eq(focusSessionRuns.runKey, runKey), eq(focusSessionRuns.userId, user.id)))
+        .for("update").limit(1);
+      const [commitment] = await tx.select({ status: sessionCommitments.status }).from(sessionCommitments)
+        .where(and(eq(sessionCommitments.runKey, runKey), eq(sessionCommitments.userId, user.id)))
+        .for("update").limit(1);
+      if (run?.status !== "active" || commitment?.status !== "pending") return false;
+      const now = new Date();
+      const updatedRun = await tx.update(focusSessionRuns).set({ status: "cancelled", endedAt: now })
+        .where(and(eq(focusSessionRuns.runKey, runKey), eq(focusSessionRuns.userId, user.id), eq(focusSessionRuns.status, "active")))
+        .returning({ runKey: focusSessionRuns.runKey });
+      if (!updatedRun.length) return false;
+      await tx.update(sessionCommitments).set({ status: "cancelled", resolvedAt: now, accountabilityExpiresAt: null })
+        .where(and(eq(sessionCommitments.runKey, runKey), eq(sessionCommitments.userId, user.id), eq(sessionCommitments.status, "pending")));
+      return true;
+    });
+    if (!cancelled) return { error: "Only an active focus session can be cancelled. Completed sessions keep their earned XP." };
+    revalidatePath("/focus"); revalidatePath("/history"); revalidatePath("/dashboard");
+    return { ok: true };
+  }
+
+  if (outcome === "unresolved") {
+    if (record.runStatus !== "completed") return { error: "Only a completed focus session can have its outcome undone." };
+    if (record.commitmentStatus === "unresolved") return { ok: true };
+    if (record.commitmentStatus !== "fulfilled" && record.commitmentStatus !== "broken") {
+      return { error: "This commitment has no completed outcome to undo." };
+    }
+    await db.update(sessionCommitments).set({ status: "unresolved", resolvedAt: null, accountabilityExpiresAt: null })
+      .where(and(eq(sessionCommitments.runKey, runKey), eq(sessionCommitments.userId, user.id)));
+  } else {
+    if (record.runStatus === "active") {
+      try {
+        await creditFocusSession(user, { minutes: record.plannedMinutes, runKey });
+      } catch {
+        return { error: "This focus round has not reached its planned duration yet. Finish the timer, then try again." };
+      }
+    }
+    const [completedRun] = await db.select({ status: focusSessionRuns.status }).from(focusSessionRuns)
+      .where(and(eq(focusSessionRuns.runKey, runKey), eq(focusSessionRuns.userId, user.id))).limit(1);
+    if (completedRun?.status !== "completed") return { error: "Only a completed focus session can be resolved." };
+    const now = new Date();
+    const updated = await db.update(sessionCommitments).set({
+      status: outcome,
+      resolvedAt: now,
+      accountabilityExpiresAt: outcome === "broken" ? new Date(now.getTime() + 24 * 60 * 60_000) : null,
+    }).where(and(
+      eq(sessionCommitments.runKey, runKey),
+      eq(sessionCommitments.userId, user.id),
+      or(
+        eq(sessionCommitments.status, "pending"),
+        eq(sessionCommitments.status, "unresolved"),
+        eq(sessionCommitments.status, "fulfilled"),
+        eq(sessionCommitments.status, "broken"),
+      ),
+    )).returning({ id: sessionCommitments.id });
+    if (!updated.length && record.commitmentStatus !== outcome) return { error: "This commitment could not be updated." };
+  }
   revalidatePath("/focus"); revalidatePath("/history"); revalidatePath("/dashboard"); revalidatePath("/leaderboard");
   return { ok: true };
+}
+
+export async function resolveCommitmentAction(runKey: string, outcome: "fulfilled" | "broken") {
+  return setCommitmentStatusAction(runKey, outcome);
 }
 
 /** Return a challenge only when its server-chosen deadline has arrived. */

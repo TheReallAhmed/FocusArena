@@ -109,7 +109,7 @@ export default async function LeaderboardPage({
                     </span>
                   )}
                   <span className="relative">
-                    <Avatar name={r.displayName} hue={r.avatarHue} frameKey={r.equippedFrame} size={isFirst ? 62 : 50} />
+                    <Avatar name={r.displayName} hue={r.avatarHue} frameKey={r.equippedFrame} size={isFirst ? 62 : 50} isAdmin={r.role === "admin"} />
                     <span
                       className="tnum absolute -bottom-1.5 -right-1.5 flex h-6 w-6 items-center justify-center rounded-full border-2 border-ink-950 text-[0.68rem] font-black text-ink-950"
                       style={{ background: PODIUM_HUE[rank - 1] }}
@@ -164,7 +164,7 @@ export default async function LeaderboardPage({
                 }`}
               >
                 <span className="tnum w-7 shrink-0 text-center text-sm font-bold text-[#6d6a8f]">{i + 4}</span>
-                <Avatar name={r.displayName} hue={r.avatarHue} imageUrl={r.avatarUrl} frameKey={r.equippedFrame} size={36} />
+                <Avatar name={r.displayName} hue={r.avatarHue} imageUrl={r.avatarUrl} frameKey={r.equippedFrame} size={36} isAdmin={r.role === "admin"} />
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-white">
                     <StyledDisplayName name={r.displayName} colorKey={r.equippedColor} iconKey={r.equippedIcon} logoKey={r.equippedLogo} />
@@ -204,7 +204,7 @@ export default async function LeaderboardPage({
         {qualityRows.length === 0 ? <p className="p-5 text-xs text-[#8f8cb0]">{locale === "ar" ? "لم يسجل أي لاعب خمس جولات تركيز مقيمة بعد." : "No player has 5 scored focus rounds yet."}</p> : qualityRows.map((row, index) => (
           <Link key={row.id} href={`/u/${row.username}`} className="flex items-center gap-3 border-b border-line/70 px-5 py-3 last:border-0 hover:bg-white/[0.02]">
             <span className="tnum w-6 text-center text-xs font-bold text-[#6d6a8f]">{index + 1}</span>
-            <Avatar name={row.displayName} hue={row.avatarHue} size={32} />
+            <Avatar name={row.displayName} hue={row.avatarHue} size={32} isAdmin={row.role === "admin"} />
             <span className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{row.displayName} <span className="text-xs font-normal text-[#6d6a8f]">@{row.username}</span></span>
             <span className="tnum text-sm font-bold text-mint-400">{row.averageQuality}%</span>
             <span className="text-[0.65rem] text-[#6d6a8f]">{row.scoredRounds} {text("leaderboard.rounds")}</span>

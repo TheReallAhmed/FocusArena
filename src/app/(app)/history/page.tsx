@@ -6,6 +6,7 @@ import { getSessionUser } from "@/lib/auth";
 import { getSessionHistory, getCommitmentHistory, getRecentProjects } from "@/server/queries";
 import { fmtMinutes, timeAgo } from "@/lib/dates";
 import { EmptyState } from "@/components/widgets";
+import { CommitmentHistoryControls } from "@/components/commitment-history-controls";
 import { normalizeLocale, t } from "@/lib/i18n";
 
 export const metadata: Metadata = { title: "History" };
@@ -103,11 +104,11 @@ export default async function HistoryPage({
       <section className="glass-card overflow-hidden" aria-labelledby="commitment-history-title">
         <div className="border-b border-line px-5 py-4">
           <h2 id="commitment-history-title" className="text-sm font-bold text-white">{text("history.private")}</h2>
-          <p className="mt-1 text-xs text-[#6d6a8f]">Only outcomes you explicitly resolve count toward fulfillment. Abandoned and cancelled rounds are shown separately and never counted as failures.</p>
+          <p className="mt-1 text-xs text-[#6d6a8f]">{locale === "ar" ? "اختر الوفاء أو عدمه، ويمكنك تغيير القرار لاحقًا. تُحتسب XP مرة واحدة عن كل دقيقة من الجلسة المكتملة." : "Choose whether you fulfilled the commitment; you can change the answer later. Completed focus minutes are credited to XP only once."}</p>
         </div>
         {commitments.length === 0 ? <p className="px-5 py-6 text-sm text-[#6d6a8f]">{text("history.noCommitments")}</p> : <div className="divide-y divide-line">
           {commitments.map((item) => {
-            const status = item.status === "pending" ? text("history.inProgress") : item.status === "unresolved" ? text("history.unresolved") : item.status === "fulfilled" ? text("history.fulfilled") : item.status === "broken" ? (locale === "ar" ? "أفاد بعدم الوفاء" : "Self-reported not fulfilled") : item.status === "abandoned" ? text("history.abandoned") : item.status === "cancelled" ? text("history.cancelled") : item.status;
+            const status = item.status === "pending" ? text("history.inProgress") : item.status === "unresolved" ? text("history.unresolved") : item.status === "fulfilled" ? text("history.fulfilled") : item.status === "broken" ? text("commitment.notFulfilled") : item.status === "abandoned" ? text("history.abandoned") : item.status === "cancelled" ? text("history.cancelled") : item.status;
             const tone = item.status === "fulfilled" ? "text-mint-300" : item.status === "broken" ? "text-rose-300" : item.status === "unresolved" || item.status === "pending" ? "text-gold-300" : "text-[#6d6a8f]";
             return <div key={item.runKey} className="flex flex-wrap items-start justify-between gap-3 px-5 py-3.5">
               <div className="min-w-0 flex-1">
@@ -117,6 +118,7 @@ export default async function HistoryPage({
               <div className="text-right">
                 <p className={`text-xs font-semibold ${tone}`}>{status}</p>
                 <p className="mt-1 text-[0.65rem] text-[#6d6a8f]">{timeAgo(item.startedAt, locale)} · {locale === "ar" ? "المخطط" : "planned"} {fmtMinutes(item.plannedMinutes, locale)}</p>
+                <CommitmentHistoryControls runKey={item.runKey} status={item.status} runStatus={item.runStatus} />
               </div>
             </div>;
           })}

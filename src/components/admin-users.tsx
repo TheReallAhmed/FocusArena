@@ -48,7 +48,7 @@ export function AdminUsersTable({ users, meId }: { users: Row[]; meId: number })
     <div className="divide-y divide-line">
       {users.map((u) => (
         <div key={u.id} className="flex flex-wrap items-center gap-3 px-5 py-3.5">
-          <Avatar name={u.displayName} hue={u.avatarHue} size={36} />
+          <Avatar name={u.displayName} hue={u.avatarHue} size={36} isAdmin={u.role === "admin"} />
           <div className="min-w-0 flex-1 basis-40">
             <p className="flex flex-wrap items-center gap-1.5 text-sm font-semibold text-white">
               <Link href={`/u/${u.username}`} className="truncate hover:text-brand-300">

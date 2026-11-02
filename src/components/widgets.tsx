@@ -17,6 +17,7 @@ export function Avatar({
   size = 38,
   ring = false,
   frameKey,
+  isAdmin = false,
 }: {
   name: string;
   hue: number;
@@ -24,10 +25,11 @@ export function Avatar({
   size?: number;
   ring?: boolean;
   frameKey?: string | null;
+  isAdmin?: boolean;
 }) {
   const initial = (name || "?").trim().charAt(0).toUpperCase();
   const frameColor = perkColor(frameKey) ?? null;
-  return (
+  const avatar = (
     <span
       className="inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full font-bold text-white"
       style={{
@@ -46,6 +48,8 @@ export function Avatar({
       )}
     </span>
   );
+  if (!isAdmin) return avatar;
+  return <span className="admin-avatar-frame" style={{ width: size + 6, height: size + 6, padding: 3 }} title="FocusArena admin">{avatar}</span>;
 }
 
 const TITLE_AR: Record<string, string> = { "focus-beast": "وحش التركيز", "deep-work-master": "سيد العمل العميق", "arena-veteran": "مخضرم الساحة", "night-owl": "بومة الليل", "task-alchemist": "كيميائي المهام", "flow-state": "حالة التدفق", "zero-noise": "بلا ضجيج", "legendary-focus": "تركيز أسطوري", "silence-architect": "مهندس الصمت", "momentum-engine": "محرك الزخم", "midnight-oracle": "عرّاف منتصف الليل", "precision-ace": "خبير الدقة", "calm-commander": "قائد الهدوء", "flow-architect": "مهندس التدفق", "quest-closer": "منجز المهام", "focus-ascendant": "متصاعد التركيز" };
@@ -171,7 +175,7 @@ const BADGE_ICONS: Record<string, LucideIcon> = {
 export function AdminChip({ small = false, locale = "en" }: { small?: boolean; locale?: Locale }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full border border-gold-400/50 bg-gold-400/12 font-black uppercase tracking-wider text-gold-400 ${
+      className={`admin-role-chip inline-flex items-center gap-1 rounded-full border border-gold-400/50 bg-gold-400/12 font-black uppercase tracking-wider text-gold-400 ${
         small ? "px-1.5 py-0 text-[0.58rem]" : "px-2.5 py-0.5 text-[0.65rem]"
       }`}
       title={locale === "ar" ? "مشرف المشروع" : "Project admin"}

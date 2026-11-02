@@ -277,6 +277,47 @@ body {
     mask-image: linear-gradient(180deg, black 55%, transparent);
   }
 
+  .admin-avatar-frame {
+    position: relative;
+    isolation: isolate;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    border-radius: 9999px;
+    background: conic-gradient(from 0deg, #fff4bf, #fbbf24 17%, #f97316 34%, #7c2d12 47%, #fbbf24 66%, #fff4bf 82%, #ea580c);
+    box-shadow: 0 0 0 2px #06060d, 0 0 14px 3px rgb(249 115 22 / 52%), 0 0 26px 6px rgb(251 191 36 / 28%);
+    animation: admin-ember-pulse 1.7s ease-in-out infinite;
+  }
+  .admin-avatar-frame::before {
+    position: absolute;
+    inset: -4px;
+    z-index: -1;
+    border-radius: inherit;
+    background: conic-gradient(from 35deg, #fbbf24, #f97316, #fff1a8, #b45309, #fbbf24);
+    content: "";
+    filter: blur(7px);
+    opacity: 0.78;
+    animation: admin-ember-sweep 3.2s linear infinite;
+  }
+  .admin-role-chip {
+    text-shadow: 0 0 8px rgb(251 191 36 / 58%);
+    box-shadow: 0 0 12px -3px rgb(249 115 22 / 68%);
+    animation: admin-chip-pulse 1.7s ease-in-out infinite;
+  }
+  @keyframes admin-ember-sweep { to { transform: rotate(360deg); } }
+  @keyframes admin-chip-pulse {
+    0%, 100% { box-shadow: 0 0 8px -3px rgb(249 115 22 / 48%); }
+    50% { box-shadow: 0 0 16px -2px rgb(251 191 36 / 85%); }
+  }
+  @keyframes admin-ember-pulse {
+    0%, 100% { box-shadow: 0 0 0 2px #06060d, 0 0 12px 2px rgb(249 115 22 / 42%), 0 0 22px 4px rgb(251 191 36 / 22%); }
+    50% { box-shadow: 0 0 0 2px #06060d, 0 0 19px 5px rgb(249 115 22 / 78%), 0 0 34px 8px rgb(251 191 36 / 42%); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .admin-avatar-frame, .admin-avatar-frame::before, .admin-role-chip { animation: none !important; }
+  }
+
   .reveal {
     opacity: 0;
     transform: translateY(34px);

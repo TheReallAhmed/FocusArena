@@ -4,10 +4,10 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo,
   useLayoutEffect, useRef, useState, type ReactNode,
 } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Pause, Play, Timer, Watch, Zap, X, ChevronRight, HelpCircle, Check, Ban, Target, ShieldCheck, LoaderCircle } from "lucide-react";
 import { completeFocusSession, type FocusResult } from "@/server/actions";
-import { abandonFocusRunAction, answerProofCheckAction, beginFocusRunAction, cancelFocusRunAction, pollProofCheckAction, type SessionStartDetails } from "@/server/distractions";
+import { abandonFocusRunAction, answerProofCheckAction, beginFocusRunAction, cancelFocusRunAction, getLatestUnresolvedCommitmentAction, pollProofCheckAction, resolveCommitmentAction, type SessionStartDetails } from "@/server/distractions";
 import { playChime, unlockAudio } from "@/lib/sound";
 import { fmtClock } from "@/lib/dates";
 import { useLocale } from "@/components/locale-provider";
@@ -173,6 +173,7 @@ const ACCENT: Record<Mode, { a: string; b: string; label: string }> = {
 
 export function TimerProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { locale } = useLocale();
   const [st, setSt] = useState<StoredState | null>(null);
   const [msLeft, setMsLeft] = useState(0);
@@ -181,6 +182,10 @@ export function TimerProvider({ children }: { children: ReactNode }) {
   const [celebrations, setCelebrations] = useState<Celebration[]>([]);
   const [pendingAsk, setPendingAsk] = useState<null | "pomodoro" | "stopwatch">(null);
   const [pendingFocusSetup, setPendingFocusSetup] = useState(false);
+  const [creditError, setCreditError] = useState(false);
+  const [completionReview, setCompletionReview] = useState<{ runKey: string; intendedOutcome: string; consequence: string | null } | null>(null);
+  const [reviewSaving, setReviewSaving] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
   const [focusGoal, setFocusGoal] = useState("");
   const [focusConsequence, setFocusConsequence] = useState("");
   const [focusEnergy, setFocusEnergy] = useState<number | null>(null);
@@ -189,6 +194,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
   const [focusSetupSaving, setFocusSetupSaving] = useState(false);
   const [proofPromptRunKey, setProofPromptRunKey] = useState<string | null>(null);
   const [proofPromptError, setProofPromptError] = useState<string | null>(null);
+  const focusCommitmentsRef = useRef(new Map<string, { intendedOutcome: string; consequence: string | null }>());
   const proofShownRunRef = useRef<string | null>(null);
   const stRef = useRef<StoredState | null>(null);
   const pathRef = useRef(pathname);
@@ -206,6 +212,18 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(KEY, JSON.stringify(next));
     } catch { /* storage unavailable */ }
   }, []);
+
+  useEffect(() => {
+    const onRunCancelled = (event: Event) => {
+      const cancelledRunKey = (event as CustomEvent<string>).detail;
+      const cur = stRef.current;
+      if (!cur || cur.pomodoro.runKey !== cancelledRunKey) return;
+      persist({ ...cur, pomodoro: { ...cur.pomodoro, status: "idle", endAt: null, remainingMs: null, runKey: null } });
+      setCreditError(false);
+    };
+    window.addEventListener("focusarena:run-cancelled", onRunCancelled);
+    return () => window.removeEventListener("focusarena:run-cancelled", onRunCancelled);
+  }, [persist]);
 
   const dismissCelebration = useCallback((id: number) => {
     setCelebrations((cs) => cs.filter((c) => c.id !== id));
@@ -233,7 +251,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
 
   /* --------------------------- CREDIT ENGINE --------------------------- */
 
-  const credit = useCallback(async (minutes: number, taskId: number | null, kind: "focus" | "bank", runKey: string | null = null) => {
+  const credit = useCallback(async (minutes: number, taskId: number | null, kind: "focus" | "bank", runKey: string | null = null): Promise<boolean> => {
     try {
       const res = await completeFocusSession({
         minutes, taskId,
@@ -241,11 +259,11 @@ export function TimerProvider({ children }: { children: ReactNode }) {
         note: stRef.current?.note ?? null,
         runKey,
       });
-      setLastResult(res);
+      if (res.gained > 0) setLastResult(res);
       const cur = stRef.current;
-      if (cur) {
+      if (cur && res.gained > 0) {
         const before = cur.todayMin;
-        const after = before + minutes;
+        const after = before + res.gained;
         persist({ ...cur, todayMin: after, note: null });
         if (res.leveledUp) {
           pushCelebration({ icon: "badge", title: translate(locale, "focus.levelReached", { level: res.level }), sub: translate(locale, "focus.levelReachedSub"), hue: 205 });
@@ -255,18 +273,39 @@ export function TimerProvider({ children }: { children: ReactNode }) {
           if (!cur.muted) playChime("bank");
         }
       }
-      if (!stRef.current?.muted) playChime(kind);
-
-      pushCelebration({
-        icon: "xp",
-        title: translate(locale, kind === "bank" ? "focus.bankToast" : "focus.roundBankedToast", { xp: res.gained }),
-        sub: translate(locale, "focus.streakLevel", { streak: res.streak, level: res.level }),
-        hue: 255,
-      });
-      for (const b of res.newBadges) {
-        pushCelebration({ icon: "badge", title: translate(locale, "focus.badgeToast", { name: b.name }), sub: b.desc, hue: b.hue });
+      if (res.gained > 0) {
+        if (!stRef.current?.muted) playChime(kind);
+        pushCelebration({
+          icon: "xp",
+          title: translate(locale, kind === "bank" ? "focus.bankToast" : "focus.roundBankedToast", { xp: res.gained }),
+          sub: translate(locale, "focus.streakLevel", { streak: res.streak, level: res.level }),
+          hue: 255,
+        });
+        for (const b of res.newBadges) {
+          pushCelebration({ icon: "badge", title: translate(locale, "focus.badgeToast", { name: b.name }), sub: b.desc, hue: b.hue });
+        }
       }
-    } catch { /* offline: keep going */ }
+      if (kind === "focus" && runKey) {
+        const localCommitment = focusCommitmentsRef.current.get(runKey);
+        try {
+          const item = await getLatestUnresolvedCommitmentAction(runKey);
+          if (item) {
+            setCompletionReview({ runKey: item.runKey, intendedOutcome: item.intendedOutcome, consequence: item.consequence });
+            setReviewError(null);
+          }
+          focusCommitmentsRef.current.delete(runKey);
+        } catch {
+          if (localCommitment) {
+            setCompletionReview({ runKey, ...localCommitment });
+            setReviewError(null);
+          }
+          focusCommitmentsRef.current.delete(runKey);
+        }
+      }
+      return true;
+    } catch {
+      return false;
+    }
   }, [locale, persist, pushCelebration]);
 
   /* ---------------------- POMODORO TRANSITIONS ------------------------- */
@@ -293,14 +332,26 @@ export function TimerProvider({ children }: { children: ReactNode }) {
         const done = cycles + 1;
         const marker = `fa_claim_${endAt}`;
         let claimed = false;
-        try {
-          if (!localStorage.getItem(marker)) {
-            localStorage.setItem(marker, "1");
-            claimed = true;
+        // Tracked runs are idempotent on the server by runKey; never rely on a
+        // client claim written before the server confirms that XP was banked.
+        if (!runKey) {
+          try { claimed = Boolean(localStorage.getItem(marker)); } catch { claimed = false; }
+        }
+        if (!claimed) {
+          setCreditError(false);
+          const saved = await credit(cur.durations.focus, taskId, "focus", runKey);
+          if (!saved) {
+            const latest = stRef.current;
+            if (latest?.pomodoro.runKey === runKey) {
+              persist({ ...latest, pomodoro: { ...latest.pomodoro, status: "paused", endAt: null, remainingMs: 0 } });
+            }
+            setCreditError(true);
+            resolvingEndAtRef.current = null;
+            return;
           }
-        } catch { claimed = true; }
-        if (claimed) {
-          await credit(cur.durations.focus, taskId, "focus", runKey);
+          if (!runKey) {
+            try { localStorage.setItem(marker, "1"); } catch { /* The session is already safely banked. */ }
+          }
         }
         cycles = done;
         runKey = null;
@@ -438,6 +489,25 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     }
   }, [proofPromptRunKey]);
 
+  const saveCommitmentOutcome = useCallback(async (outcome: "fulfilled" | "broken") => {
+    if (!completionReview) return;
+    setReviewSaving(true);
+    setReviewError(null);
+    try {
+      const result = await resolveCommitmentAction(completionReview.runKey, outcome);
+      if ("error" in result) {
+        setReviewError(result.error ?? (locale === "ar" ? "تعذر حفظ الإجابة. حاول مجددًا." : "Could not save your answer. Try again."));
+        return;
+      }
+      setCompletionReview(null);
+      router.refresh();
+    } catch {
+      setReviewError(locale === "ar" ? "تعذر الوصول إلى الخادم؛ لم تُحفظ إجابتك." : "Could not reach the server. Your answer was not saved.");
+    } finally {
+      setReviewSaving(false);
+    }
+  }, [completionReview, locale, router]);
+
   const pToggle = useCallback(() => {
     const cur = stRef.current;
     if (!cur) return;
@@ -486,6 +556,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       }
       const p = latest.pomodoro;
       const base = p.status === "paused" && p.remainingMs !== null ? p.remainingMs : durationMs("focus", latest.durations);
+      focusCommitmentsRef.current.set(runKey, { intendedOutcome: details.intendedOutcome, consequence: details.consequence ?? null });
       persist({ ...latest, pomodoro: { ...p, runKey, status: "running", endAt: Date.now() + base, remainingMs: null } });
       setPendingFocusSetup(false);
       setFocusGoal(""); setFocusConsequence(""); setFocusEnergy(null); setProofOptIn(false);
@@ -744,6 +815,37 @@ export function TimerProvider({ children }: { children: ReactNode }) {
   return (
     <TimerContext.Provider value={value}>
       {children}
+
+      {creditError && (
+        <div role="alert" className="fixed bottom-5 left-1/2 z-[190] flex w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 items-center gap-3 rounded-2xl border border-rose-400/35 bg-ink-900/95 px-4 py-3 shadow-[0_12px_45px_-10px_rgba(244,63,94,0.45)] backdrop-blur-xl">
+          <p className="min-w-0 flex-1 text-sm text-rose-200">{locale === "ar" ? "تعذر حفظ جلسة التركيز. لم نفقدها؛ أعد المحاولة عند عودة الاتصال." : "Your focus time could not be saved. It is still here—retry when you are back online."}</p>
+          <button type="button" onClick={() => pToggle()} className="btn btn-ghost !px-3 !py-2 !text-xs hover:!text-white">{locale === "ar" ? "إعادة محاولة الحفظ" : "Retry saving"}</button>
+          <button type="button" aria-label={translate(locale, "common.close")} onClick={() => setCreditError(false)} className="shrink-0 text-[#8f8cb0] hover:text-white"><X size={15} /></button>
+        </div>
+      )}
+
+      {completionReview && (
+        <div className="fixed inset-0 z-[180] flex items-center justify-center bg-ink-950/85 p-4 backdrop-blur-sm">
+          <section role="dialog" aria-modal="true" aria-labelledby="focus-completion-title" className="glass-card w-full max-w-md border-mint-400/25 p-6 shadow-[0_20px_80px_-20px_rgba(74,222,158,0.22)]">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-mint-400/12 text-mint-300"><Check size={19} /></span>
+              <div className="min-w-0 flex-1">
+                <h2 id="focus-completion-title" className="text-base font-bold text-white">{locale === "ar" ? "اكتملت جولة التركيز" : "Focus round complete"}</h2>
+                <p className="mt-1 text-xs text-[#8f8cb0]">{locale === "ar" ? "حُفظت دقائقك وXP. هل أوفيت بالتزامك؟" : "Your minutes and XP are saved. Did you fulfill your commitment?"}</p>
+              </div>
+              <button type="button" aria-label={translate(locale, "common.close")} onClick={() => setCompletionReview(null)} className="text-[#6d6a8f] hover:text-white"><X size={16} /></button>
+            </div>
+            <blockquote className="mt-4 rounded-xl border border-line bg-white/[0.025] px-4 py-3 text-sm text-[#d9d7ec]">{completionReview.intendedOutcome}</blockquote>
+            {completionReview.consequence && <p className="mt-2 text-xs text-[#8f8cb0]">{locale === "ar" ? "عاقبتك الشخصية:" : "Your personal consequence:"} {completionReview.consequence}</p>}
+            {reviewError && <p role="alert" className="mt-3 text-xs text-rose-300">{reviewError}</p>}
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button type="button" disabled={reviewSaving} onClick={() => void saveCommitmentOutcome("fulfilled")} className="btn btn-primary !px-4 !py-2 text-xs"><Check size={14} /> {translate(locale, "commitment.fulfilled")}</button>
+              <button type="button" disabled={reviewSaving} onClick={() => void saveCommitmentOutcome("broken")} className="btn btn-ghost !px-4 !py-2 text-xs hover:!text-rose-300"><Ban size={14} /> {translate(locale, "commitment.notFulfilled")}</button>
+              {reviewSaving && <LoaderCircle size={15} className="animate-spin self-center text-brand-300" />}
+            </div>
+          </section>
+        </div>
+      )}
 
       {pendingFocusSetup && (
         <div className="fixed inset-0 z-[160] flex items-center justify-center bg-ink-950/85 p-4 backdrop-blur-sm">

@@ -91,7 +91,7 @@ export function Sidebar({ user }: { user: User }) {
             href={`/u/${user.username}`}
             className="mb-1 flex items-center gap-3 rounded-xl border border-line bg-white/[0.03] px-3 py-2.5 transition hover:border-white/20"
           >
-            <Avatar name={user.displayName} hue={user.avatarHue} imageUrl={user.avatarUrl} frameKey={user.equippedFrame} size={34} />
+            <Avatar name={user.displayName} hue={user.avatarHue} imageUrl={user.avatarUrl} frameKey={user.equippedFrame} size={34} isAdmin={isAdmin} />
             <div className="min-w-0 flex-1">
               <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-white" style={{ color: perkColor(user.equippedColor) }}>
                 {user.displayName}
@@ -115,7 +115,7 @@ export function Sidebar({ user }: { user: User }) {
           <div className="flex items-center gap-2.5">
             {isAdmin ? <AdminChip small locale={locale} /> : <LevelChip level={level} small locale={locale} />}
             <Link href={`/u/${user.username}`}>
-              <Avatar name={user.displayName} hue={user.avatarHue} imageUrl={user.avatarUrl} frameKey={user.equippedFrame} size={30} />
+              <Avatar name={user.displayName} hue={user.avatarHue} imageUrl={user.avatarUrl} frameKey={user.equippedFrame} size={30} isAdmin={isAdmin} />
             </Link>
           </div>
         </div>

@@ -291,7 +291,7 @@ export default async function DashboardPage() {
                     <span className={`tnum w-4 text-sm font-black ${i === 0 ? "text-gold-400" : i === 1 ? "text-[#c7c4de]" : "text-[#e08a4c]"}`}>
                       {i + 1}
                     </span>
-                    <Avatar name={r.displayName} hue={r.avatarHue} imageUrl={r.avatarUrl} frameKey={r.equippedFrame} size={30} />
+                    <Avatar name={r.displayName} hue={r.avatarHue} imageUrl={r.avatarUrl} frameKey={r.equippedFrame} size={30} isAdmin={r.role === "admin"} />
                     <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-sm font-semibold text-white">
                       {r.displayName}
                       {r.role === "admin" && <AdminChip small locale={locale} />}

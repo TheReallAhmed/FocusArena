@@ -42,7 +42,7 @@ const categoryDescriptions: Record<PerkCategory, { en: string; ar: string }> = {
   icon: { en: "Add a small signature icon beside your name.", ar: "أضف أيقونة صغيرة بجانب اسمك." },
 };
 
-export function PerksStore({ xpBalance, ownedKeys, equippedTitle, equippedFrame, equippedLogo, equippedColor, equippedIcon, displayName, avatarHue, avatarUrl }: {
+export function PerksStore({ xpBalance, ownedKeys, equippedTitle, equippedFrame, equippedLogo, equippedColor, equippedIcon, displayName, avatarHue, avatarUrl, isAdmin }: {
   xpBalance: number;
   ownedKeys: string[];
   equippedTitle: string | null;
@@ -53,6 +53,7 @@ export function PerksStore({ xpBalance, ownedKeys, equippedTitle, equippedFrame,
   displayName: string;
   avatarHue: number;
   avatarUrl: string | null;
+  isAdmin: boolean;
 }) {
   const router = useRouter();
   const { locale, t } = useLocale();
@@ -108,7 +109,7 @@ export function PerksStore({ xpBalance, ownedKeys, equippedTitle, equippedFrame,
         <button type="button" onClick={resetLook} disabled={busy || ![equippedTitle,equippedFrame,equippedLogo,equippedColor,equippedIcon].some(Boolean)} className="btn btn-ghost !px-3 !py-2 !text-xs">{busy && busyKey === "reset" ? <LoaderCircle size={13} className="animate-spin"/> : null}{t("shop.reset")}</button>
       </div>
       <div className="relative mt-4 flex items-center gap-4 overflow-hidden rounded-2xl border border-white/10 bg-[radial-gradient(ellipse_at_top_right,rgba(124,108,255,.18),transparent_60%),rgba(255,255,255,.025)] p-4 transition-all duration-500">
-        <div className="relative"><Avatar name={displayName} hue={avatarHue} imageUrl={avatarUrl} size={58} frameKey={equippedFrame}/>{activeMark && <span className="absolute -bottom-1 -end-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-ink-900 bg-ink-800 shadow-lg" style={{ color: activeMark.color }}><ShopGlyph symbol={activeMark.symbol} size={13}/></span>}</div>
+        <div className="relative"><Avatar name={displayName} hue={avatarHue} imageUrl={avatarUrl} size={58} frameKey={equippedFrame} isAdmin={isAdmin}/>{activeMark && <span className="absolute -bottom-1 -end-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-ink-900 bg-ink-800 shadow-lg" style={{ color: activeMark.color }}><ShopGlyph symbol={activeMark.symbol} size={13}/></span>}</div>
         <div className="min-w-0 flex-1"><p className="flex flex-wrap items-center gap-1.5 text-lg font-bold transition-all duration-300" style={{ color: nameColor, textShadow: equippedColor ? `0 0 18px ${nameColor}66` : undefined }}>{displayName}{equippedIcon && (() => { const item = PERK_CATALOG.find((entry) => entry.key === equippedIcon); return <ShopGlyph symbol={item?.symbol} size={16} style={{ color: item?.color }} />; })()}</p><p className="mt-1 flex flex-wrap items-center gap-2"><span className="text-xs text-[#777494]">@you</span>{equippedTitle && <span className="chip !border-neon-400/30 !bg-neon-400/8 !px-2 !py-0.5 !text-[.62rem] !text-neon-300">{PERK_CATALOG.find((item) => item.key === equippedTitle)?.name}</span>}</p></div>
         <div className="hidden sm:flex items-center gap-2">{equippedColor && <span className="h-7 w-7 rounded-full border border-white/20 shadow-[0_0_22px_currentColor]" style={{ background: nameColor, color: nameColor }} title={t("shop.filter.color")} />}{equippedLogo && <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-black/20" style={{ color: PERK_CATALOG.find((item) => item.key === equippedLogo)?.color }}><ShopGlyph symbol={PERK_CATALOG.find((item) => item.key === equippedLogo)?.symbol} size={20}/></span>}</div>
       </div>

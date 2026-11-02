@@ -79,7 +79,7 @@ export default async function AdminPage() {
           <ul className="grid gap-2 sm:grid-cols-2">
             {data.recent.map((r) => (
               <li key={r.id} className="flex items-center gap-3 rounded-xl border border-line bg-white/[0.02] px-3.5 py-2.5">
-                <Avatar name={r.userName} hue={r.userHue} imageUrl={r.userAvatarUrl} size={28} />
+                <Avatar name={r.userName} hue={r.userHue} imageUrl={r.userAvatarUrl} size={28} isAdmin={r.userRole === "admin"} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm text-[#d9d7ec]">{r.userName}</p>
                   <p className="text-[0.65rem] text-[#6d6a8f]">

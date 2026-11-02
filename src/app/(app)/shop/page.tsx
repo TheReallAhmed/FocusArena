@@ -27,6 +27,6 @@ export default async function ShopPage() {
       </div>
       <div className="relative mt-6 grid max-w-xl grid-cols-2 gap-3"><div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[.65rem] uppercase tracking-wider text-[#777494]">{text("shop.xpEarned")}</p><p className="tnum mt-1 text-lg font-bold text-white">{user.xp.toLocaleString()} XP</p></div><div className="rounded-xl border border-gold-400/20 bg-gold-400/[.06] p-3"><p className="text-[.65rem] uppercase tracking-wider text-gold-200/70">{text("shop.storeXP")}</p><p className="tnum mt-1 text-lg font-bold text-gold-300">{user.xpBalance.toLocaleString()} XP</p></div></div>
     </header>
-    <PerksStore xpBalance={user.xpBalance} ownedKeys={owned.map((item) => item.rewardKey)} equippedTitle={user.equippedTitle} equippedFrame={user.equippedFrame} equippedLogo={user.equippedLogo} equippedColor={user.equippedColor} equippedIcon={user.equippedIcon} displayName={user.displayName} avatarHue={user.avatarHue} avatarUrl={user.avatarUrl} />
+    <PerksStore xpBalance={user.xpBalance} ownedKeys={owned.map((item) => item.rewardKey)} equippedTitle={user.equippedTitle} equippedFrame={user.equippedFrame} equippedLogo={user.equippedLogo} equippedColor={user.equippedColor} equippedIcon={user.equippedIcon} displayName={user.displayName} avatarHue={user.avatarHue} avatarUrl={user.avatarUrl} isAdmin={user.role === "admin"} />
   </div>;
 }

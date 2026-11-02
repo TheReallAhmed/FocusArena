@@ -168,6 +168,7 @@ export async function getFocusQualityLeaderboard(limit = 5) {
     id: users.id,
     username: users.username,
     displayName: users.displayName,
+    role: users.role,
     avatarHue: users.avatarHue,
     averageQuality,
     scoredRounds,
@@ -647,6 +648,7 @@ export async function getAdminData() {
       minutes: focusSessions.minutes,
       startedAt: focusSessions.startedAt,
       userName: users.displayName,
+      userRole: users.role,
       userHue: users.avatarHue,
       userAvatarUrl: users.avatarUrl,
     })

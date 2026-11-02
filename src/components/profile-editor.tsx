@@ -102,7 +102,7 @@ export function ProfileEditor({ user }: { user: User }) {
         <div className="relative flex flex-col items-center text-center">
           <p className="text-[0.65rem] font-bold uppercase tracking-[0.25em] text-brand-300">{t("profile.photo")}</p>
           <div className="relative mt-6">
-            <Avatar name={user.displayName} hue={user.avatarHue} imageUrl={avatar} size={150} ring frameKey={user.equippedFrame} />
+            <Avatar name={user.displayName} hue={user.avatarHue} imageUrl={avatar} size={150} ring frameKey={user.equippedFrame} isAdmin={user.role === "admin"} />
             <button
               type="button"
               onClick={() => fileRef.current?.click()}

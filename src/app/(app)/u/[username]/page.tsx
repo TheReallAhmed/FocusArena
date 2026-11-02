@@ -50,7 +50,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
         />
         <div className="relative flex flex-wrap items-center gap-5 sm:gap-7">
           <span className="relative">
-            <Avatar name={user.displayName} hue={user.avatarHue} imageUrl={user.avatarUrl} frameKey={user.equippedFrame} size={92} />
+            <Avatar name={user.displayName} hue={user.avatarHue} imageUrl={user.avatarUrl} frameKey={user.equippedFrame} size={92} isAdmin={user.role === "admin"} />
             {user.streak >= 7 && (
               <span className="absolute -bottom-2 -right-2 flex h-8 w-8 items-center justify-center rounded-full border-2 border-ink-900 bg-gold-400 text-ink-950">
                 <Flame size={15} strokeWidth={2.5} />
